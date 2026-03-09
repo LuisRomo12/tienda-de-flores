@@ -1,0 +1,64 @@
+﻿/* Variables Globales de Tema y Colores (Claro/Oscuro) */
+
+/* TEMA CLARO (Default) */
+:root {
+  --bg-primary: #f8f9fa;
+  --text-primary: #333;
+  --card-bg: #fff;
+  --accent-color: #e83e8c;
+  --border-color: #dee2e6;
+  --footer-bg: #343a40;
+  --footer-text: #fff;
+  
+  /* Paleta fori / UTF-Flower (Luz) */
+  --bg-creme: #FDF9F1;
+  --text-soft: #5A4A42;
+  --primary-pink: #F4B8C1;
+  --accent-pink: #D66D81;
+  --card-shadow: rgba(0,0,0,0.05);
+  --header-bg: #FDF9F1;
+}
+
+/* TEMA OSCURO (Global overrides) */
+body.dark-theme {
+  --bg-primary: #121212;
+  --text-primary: #f0f0f0;
+  --card-bg: #1e1e1e;
+  --border-color: #333;
+  --footer-bg: #111;
+  
+  /* Refinando la vista para modo nocturno */
+  --bg-creme: #1A1A1A; /* Fondo crema pasa a ser casi negro */
+  --text-soft: #EAE0D5; /* Marrón oscuro a un crema claro para texto legibilidad */
+  --primary-pink: #9A3F5B; /* Rosa pastel pasa a vino/magenta profundo */
+  --accent-pink: #FF8BA7; /* Acento oscuro pasa a rosa brillante (neon) para resaltar en negro */
+  --card-shadow: rgba(255,255,255,0.05);
+  --header-bg: #1F1F1F;
+}
+
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-creme); 
+  color: var(--text-soft); 
+  transition: background-color 0.4s ease, color 0.4s ease; /* Transición suave al switchear el botón */
+}
+
+/* Selectores Nativos Base */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  margin-top: 0;
+  transition: color 0.4s ease;
+}
+
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+

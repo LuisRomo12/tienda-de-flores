@@ -1,0 +1,30 @@
+/* Animaciones base de scroll */
+.scroll-animate {
+  opacity: 0;
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+  will-change: opacity, transform;
+}
+
+/* Direcciones / Transformaciones */
+.scroll-animate-up { transform: translateY(50px); }
+.scroll-animate-down { transform: translateY(-50px); }
+.scroll-animate-left { transform: translateX(50px); }
+.scroll-animate-right { transform: translateX(-50px); }
+.scroll-animate-fade { transform: none; }
+
+/* Estado activo visible */
+.scroll-animate.is-visible {
+  opacity: 1;
+  transform: translateY(0) translateX(0) scale(1);
+}
+
+/* Compatibilidad con clase anterior */
+.fade-in-scroll {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+.fade-in-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}

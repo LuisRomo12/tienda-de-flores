@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UTFlower - Gestión de Inventario</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <script>
+        // Synchronize dark theme with the main app
+        window.addEventListener('load', () => {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <!-- ─── SECRET LOGIN OVERLAY ────────────────────────────────────────────── -->
+    <div id="login-overlay"
+        style="min-height: 100vh; background: linear-gradient(135deg, #fff0f3 0%, #fce4ec 50%, #f8bbd9 100%); display: flex; align-items: center; justify-content: center; font-family: 'Georgia', serif; position: fixed; inset: 0; z-index: 9999; overflow: hidden;">
+        <!-- Background Decorations -->
+        <div class="bg-decoration"
+            style="position: absolute; font-size: 2rem; opacity: 0.08; top: 10%; left: 5%; transform: rotate(0deg); pointer-events: none;">
+            🌸</div>
+        <div class="bg-decoration"
+            style="position: absolute; font-size: 2.5rem; opacity: 0.08; top: 28%; left: 78%; transform: rotate(20deg); pointer-events: none;">
+            🌹</div>
+        <div class="bg-decoration"
+            style="position: absolute; font-size: 3rem; opacity: 0.08; top: 46%; left: 11%; transform: rotate(40deg); pointer-events: none;">
+            🌷</div>
+        <div class="bg-decoration"
+            style="position: absolute; font-size: 3.5rem; opacity: 0.08; top: 64%; left: 84%; transform: rotate(60deg); pointer-events: none;">
+            💐</div>
+        <div class="bg-decoration"
+            style="position: absolute; font-size: 4rem; opacity: 0.08; top: 82%; left: 17%; transform: rotate(80deg); pointer-events: none;">
+            🌺</div>
+
+        <div id="login-box"
+            style="background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px 56px; width: 400px; box-shadow: 0 20px 60px rgba(180,90,110,0.15), 0 0 0 1px rgba(255,255,255,0.6); text-align: center; animation: fadeIn 0.6s ease;">
+            <div style="font-size: 2.8rem; margin-bottom: 8px;">🌹</div>
+            <div
+                style="font-family: 'Georgia', serif; font-size: 1.6rem; font-weight: 700; color: #6b1a2a; letter-spacing: 1px;">
+                UT<span style="color: #c4536a;">FLOWER</span>
+            </div>
+            <div id="login-form-title"
+                style="font-size: 0.75rem; color: #9e6070; letter-spacing: 4px; margin-bottom: 32px; text-transform: uppercase;">
+                Iniciar Sesión
+            </div>
+
+            <!-- Campos adicionales para registro -->
+            <div id="register-fields" style="display: none;">
+                <div style="text-align: left; margin-bottom: 16px;">
+                    <label
+                        style="font-size: 0.8rem; color: #9e6070; letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 8px;">
+                        Nombre Completo
+                    </label>
+                    <input type="text" id="reg-nombre" placeholder="Ej. Ana Silva"
+                        style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 2px solid #f0c4d0; background: rgba(255,255,255,0.8); font-size: 1rem; color: #3d1520; outline: none; box-sizing: border-box; transition: border-color 0.2s; font-family: 'Segoe UI', sans-serif;" />
+                </div>
+            </div>
+
+            <div style="text-align: left; margin-bottom: 16px;">
+                <label
+                    style="font-size: 0.8rem; color: #9e6070; letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 8px;">
+                    Usuario
+                </label>
+                <input type="text" id="login-user" placeholder="Ej. admin"
+                    style="width: 100%; padding: 14px 16px; border-radius: 12px; border: 2px solid #f0c4d0; background: rgba(255,255,255,0.8); font-size: 1rem; color: #3d1520; outline: none; box-sizing: border-box; transition: border-color 0.2s; font-family: 'Segoe UI', sans-serif;" />
+            </div>
+
+            <div style="text-align: left; margin-bottom: 16px;">
+                <label
+                    style="font-size: 0.8rem; color: #9e6070; letter-spacing: 2px; text-transform: uppercase; display: block; margin-bottom: 8px;">
+                    Contraseña
+                </label>
+                <div style="position: relative;">
+                    <input type="password" id="login-pass" placeholder="••••••••••••"
+                        style="width: 100%; padding: 14px 48px 14px 16px; border-radius: 12px; border: 2px solid #f0c4d0; background: rgba(255,255,255,0.8); font-size: 1rem; color: #3d1520; outline: none; box-sizing: border-box; transition: border-color 0.2s; font-family: monospace; letter-spacing: 3px;" />
+                    <button id="toggle-pass"
+                        style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #c4536a; font-size: 1rem;">
+                        👁️
+                    </button>
+                </div>
+                <div id="login-error"
+                    style="color: #ef4444; font-size: 0.78rem; margin-top: 6px; text-align: center; display: none;">
+                    🌵 Contraseña incorrecta
+                </div>
+            </div>
+
+            <button id="btn-login" class="login-submit"
+                style="width: 100%; padding: 14px; border-radius: 12px; border: none; background: linear-gradient(135deg, #c4536a, #9e2a3e); color: white; font-size: 0.95rem; font-weight: 700; cursor: pointer; letter-spacing: 1px; box-shadow: 0 4px 20px rgba(196,83,106,0.4); transition: all 0.2s; margin-top: 8px;">
+                Entrar al Jardín 🗝️
+            </button>
+
+            <div style="margin-top: 24px; font-size: 0.8rem; color: #c4aab2; cursor: pointer; text-decoration: underline;"
+                id="toggle-auth-mode">
+                ¿No tienes cuenta? Regístrate aquí
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── APP LAYOUT (FLEX) ─────────────────────────────────────────────────── -->
+    <div id="app-layout"
+        style="display: none; min-height: 100vh; background: #fdf6f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+
+        <!-- SIDEBAR -->
+        <aside
+            style="width: 220px; min-height: 100vh; background: linear-gradient(180deg, #3d1520 0%, #6b1a2a 100%); display: flex; flex-direction: column; padding: 0; flex-shrink: 0; box-shadow: 4px 0 20px rgba(61,21,32,0.3);">
+            <div style="padding: 28px 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div
+                    style="font-size: 1.2rem; font-weight: 700; color: white; font-family: 'Georgia', serif; letter-spacing: 1px;">
+                    UT<span style="color: #f48fb1;">FLOWER</span>
+                </div>
+                <div
+                    style="font-size: 0.65rem; color: #c48090; letter-spacing: 3px; margin-top: 2px; text-transform: uppercase;">
+                    Admin Panel
+                </div>
+            </div>
+
+            <nav style="flex: 1; padding: 16px 12px;" id="sidebar-nav">
+                <button class="nav-btn" data-target="sec-dashboard">
+                    <span style="font-size: 1rem;">📊</span> Dashboard
+                </button>
+                <button class="nav-btn active" data-target="sec-inventario">
+                    <span style="font-size: 1rem;">🌷</span> Inventario (Flores)
+                </button>
+                <button class="nav-btn" data-target="sec-accesorios">
+                    <span style="font-size: 1rem;">🎀</span> Accesorios
+                </button>
+                <button class="nav-btn" data-target="sec-pedidos">
+                    <span style="font-size: 1rem;">📦</span> Pedidos
+                </button>
+                <button class="nav-btn" data-target="sec-entregas">
+                    <span style="font-size: 1rem;">🚚</span> Entregas
+                </button>
+                <button class="nav-btn" data-target="sec-ventas">
+                    <span style="font-size: 1rem;">💰</span> Ventas
+                </button>
+            </nav>
+
+            <div style="padding: 16px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <button id="btn-logout" class="logout-btn"
+                    style="width: 100%; padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #c48090; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.2s;">
+                    🚪 Cerrar sesión
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main style="flex: 1; padding: 36px 40px; overflow-y: auto; height: 100vh; box-sizing: border-box;">
+
+            <!-- TOAST NOTIFICATION -->
+            <div id="toast"
+                style="position: fixed; top: 24px; right: 24px; background: #10b981; color: white; padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; display: none; animation: fadeIn 0.3s ease;">
+                Mensaje
+            </div>
+
+            <!-- DASHBOARD SECTION -->
+            <section id="sec-dashboard" class="content-section" style="display: none;">
+                <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin-bottom: 24px;">
+                    Buenos días 🌸 — <span style="color: #c4536a;">Resumen de hoy</span>
+                </h2>
+                <!-- Generado por JS -->
+                <div id="dashboard-content"></div>
+            </section>
+
+            <!-- INVENTARIO SECTION (Existente) -->
+            <section id="sec-inventario" class="content-section" style="display: block;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin: 0;">
+                        🌷 Gestión de Flores
+                    </h2>
+                    <button class="nav-btn-inline" data-target="sec-accesorios"
+                        style="padding: 8px 16px; border-radius: 8px; border: 1px solid #c4536a; background: white; color: #c4536a; cursor: pointer; font-weight: 600;">
+                        🎀 Ir a Accesorios
+                    </button>
+                </div>
+
+                <div class="container" style="margin: 0; padding: 0; max-width: none;">
+
+                    <section class="admin-panel"
+                        style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); height: fit-content; border: none;">
+                        <h3 id="form-title"
+                            style="color: #3d1520; margin-bottom: 20px; font-size: 1rem; margin-top: 0;">➕ Nueva Flor
+                        </h3>
+                        <form id="product-form">
+                            <input type="hidden" id="product-id">
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="nombre"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Nombre
+                                    de la Flor</label>
+                                <input type="text" id="nombre" placeholder="Ej. Rosa Roja Premium" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="precio"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Precio
+                                    ($)</label>
+                                <input type="number" id="precio" placeholder="0.00" min="0" step="0.50" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="stock"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Stock
+                                    (unidades)</label>
+                                <input type="number" id="stock" placeholder="0" min="0" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="categoria"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Categoría</label>
+                                <select id="categoria" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; background: #fff8f9; box-sizing: border-box;">
+                                    <option value="">Selecciona...</option>
+                                    <option value="Rosas">Rosas</option>
+                                    <option value="Tulipanes">Tulipanes</option>
+                                    <option value="Lirios">Lirios</option>
+                                    <option value="Ramos">Ramos Mixtos</option>
+                                    <option value="Girasoles">Girasoles</option>
+                                    <option value="Orquídeas">Orquídeas</option>
+                                    <option value="Silvestres">Silvestres</option>
+                                    <option value="Mixtas">Mixtas</option>
+                                    <option value="Peonías">Peonías</option>
+                                    <option value="Desconocida">Desconocida</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="sku"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    SKU del Producto
+                                </label>
+                                <input type="text" id="sku" placeholder="Ej. FLWR-1"
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="tags"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    Etiquetas/Tags (Separadas por coma)
+                                </label>
+                                <input type="text" id="tags" placeholder="Ej. Ramos, Rosas, Amor"
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="descripcion_detallada"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    Descripción Detallada
+                                </label>
+                                <textarea id="descripcion_detallada" rows="3"
+                                    placeholder="Escribe la descripción del arreglo floral..."
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9; resize: vertical;"></textarea>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="recomendaciones"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    Recomendaciones y Cuidados
+                                </label>
+                                <textarea id="recomendaciones" rows="2" placeholder="Ej. Cambiar agua cada 2 días..."
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9; resize: vertical;"></textarea>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="imagen"
+                                    style="font-size: 0.78rem; color: #9e6070; display: block; margin-bottom: 6px;">
+                                    Imágenes (Selecciona una o más)
+                                </label>
+                                <input type="file" id="imagen" accept="image/*" multiple>
+                                <div id="image-preview-container"
+                                    style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
+                            </div>
+
+                            <button type="submit" id="btn-save" class="btn-primary"
+                                style="width: 100%; padding: 12px; border-radius: 12px; border: none; background: linear-gradient(135deg, #c4536a, #9e2a3e); color: white; font-size: 0.9rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(196,83,106,0.3);">
+                                🌸 Agregar Flor
+                            </button>
+                            <button type="button" id="btn-cancel" class="btn-secondary hidden"
+                                style="width: 100%; padding: 10px; border-radius: 12px; border: 1.5px solid #f0c4d0; background: white; color: #9e6070; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
+                                Cancelar
+                            </button>
+                        </form>
+                    </section>
+
+                    <section class="inventory-list"
+                        style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: none;">
+                        <div class="controls" style="margin-bottom: 16px; gap: 0;">
+                            <input type="text" id="search-input" placeholder="🔍 Buscar flor..."
+                                style="width: 100%; padding: 10px 16px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; box-sizing: border-box; background: #fff8f9;">
+                            <select id="filter-category" style="display: none;">
+                                <option value="all">Todas</option>
+                            </select>
+                        </div>
+
+                        <div class="table-container">
+                            <table id="inventory-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #fce4ec;">
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Imagen</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Flor</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Categoría</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Precio</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Stock</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body">
+                                </tbody>
+                            </table>
+                            <p id="empty-msg" class="empty-msg hidden"
+                                style="text-align: center; padding: 20px; color: #9e6070;">
+                                No hay flores en el inventario.
+                            </p>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
+            <!-- ACCESORIOS SECTION -->
+            <section id="sec-accesorios" class="content-section" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin: 0;">
+                        🎀 Gestión de Accesorios
+                    </h2>
+                    <button class="nav-btn-inline" data-target="sec-inventario"
+                        style="padding: 8px 16px; border-radius: 8px; border: 1px solid #c4536a; background: white; color: #c4536a; cursor: pointer; font-weight: 600;">
+                        🌷 Ir a Flores
+                    </button>
+                </div>
+
+                <div class="container" style="margin: 0; padding: 0; max-width: none;">
+
+                    <section class="admin-panel"
+                        style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); height: fit-content; border: none;">
+                        <h3 id="acc-form-title"
+                            style="color: #3d1520; margin-bottom: 20px; font-size: 1rem; margin-top: 0;">➕ Nuevo
+                            Accesorio
+                        </h3>
+                        <form id="acc-form">
+                            <input type="hidden" id="acc-id">
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-nombre"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Nombre
+                                    del Accesorio</label>
+                                <input type="text" id="acc-nombre" placeholder="Ej. Oso de peluche grande" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-precio"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Precio
+                                    ($)</label>
+                                <input type="number" id="acc-precio" placeholder="0.00" min="0" step="0.50" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-stock"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Stock
+                                    (unidades)</label>
+                                <input type="number" id="acc-stock" placeholder="0" min="0" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="acc-categoria"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">Categoría</label>
+                                <select id="acc-categoria" required
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; background: #fff8f9; box-sizing: border-box;">
+                                    <option value="">Cargando categorías...</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-sku"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    SKU del Accesorio
+                                </label>
+                                <input type="text" id="acc-sku" placeholder="Ej. ACC-1"
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9;">
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-descripcion"
+                                    style="font-size: 0.78rem; color: #9e6070; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px;">
+                                    Descripción
+                                </label>
+                                <textarea id="acc-descripcion" rows="3"
+                                    placeholder="Escribe la descripción del accesorio..."
+                                    style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; color: #3d1520; box-sizing: border-box; background: #fff8f9; resize: vertical;"></textarea>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label for="acc-imagen"
+                                    style="font-size: 0.78rem; color: #9e6070; display: block; margin-bottom: 6px;">
+                                    Imagen del Accesorio
+                                </label>
+                                <input type="file" id="acc-imagen" accept="image/*">
+                                <div id="acc-image-preview-container"
+                                    style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
+                            </div>
+
+                            <button type="submit" id="acc-btn-save" class="btn-primary"
+                                style="width: 100%; padding: 12px; border-radius: 12px; border: none; background: linear-gradient(135deg, #c4536a, #9e2a3e); color: white; font-size: 0.9rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(196,83,106,0.3);">
+                                🎀 Agregar Accesorio
+                            </button>
+                            <button type="button" id="acc-btn-cancel" class="btn-secondary hidden"
+                                style="width: 100%; padding: 10px; border-radius: 12px; border: 1.5px solid #f0c4d0; background: white; color: #9e6070; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
+                                Cancelar
+                            </button>
+                        </form>
+                    </section>
+
+                    <section class="inventory-list"
+                        style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: none;">
+                        <div class="controls" style="margin-bottom: 16px; gap: 0;">
+                            <input type="text" id="acc-search-input" placeholder="🔍 Buscar accesorio..."
+                                style="width: 100%; padding: 10px 16px; border-radius: 10px; border: 1.5px solid #f0c4d0; outline: none; font-size: 0.9rem; box-sizing: border-box; background: #fff8f9;">
+                            <select id="acc-filter-category" style="display: none;">
+                                <option value="all">Todas</option>
+                            </select>
+                        </div>
+
+                        <div class="table-container">
+                            <table id="acc-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #fce4ec;">
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Imagen</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Accesorio</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Categoría</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Precio</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Stock</th>
+                                        <th
+                                            style="padding: 10px 14px; text-align: left; font-size: 0.78rem; color: #9e2a3e; font-weight: 700; letter-spacing: 0.5px; background: transparent;">
+                                            Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="acc-table-body">
+                                </tbody>
+                            </table>
+                            <p id="acc-empty-msg" class="empty-msg hidden"
+                                style="text-align: center; padding: 20px; color: #9e6070;">
+                                No hay accesorios en el inventario.
+                            </p>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
+            <!-- PEDIDOS SECTION -->
+            <section id="sec-pedidos" class="content-section" style="display: none;">
+                <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin-bottom: 24px;">📦
+                    Gestión de Pedidos</h2>
+                <div id="pedidos-content"></div>
+            </section>
+
+            <!-- ENTREGAS SECTION -->
+            <section id="sec-entregas" class="content-section" style="display: none;">
+                <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin-bottom: 24px;">🚚
+                    Ruta de Entregas</h2>
+                <div id="entregas-content"></div>
+            </section>
+
+            <!-- VENTAS SECTION -->
+            <section id="sec-ventas" class="content-section" style="display: none;">
+                <h2 style="font-size: 1.5rem; color: #3d1520; font-family: 'Georgia', serif; margin-bottom: 24px;">💰
+                    Reporte de Ventas</h2>
+                <div id="ventas-content"></div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MAIN APP SCRIPT WITH IMPORT MAPS FOR VANILLA MODULES -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
