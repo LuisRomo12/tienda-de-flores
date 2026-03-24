@@ -1,4 +1,4 @@
-<template>
+\<template>
   <header class="main-header">
     <div class="top-bar">
       <p>¡Envío gratis en pedidos mayores a $500! 🌸</p>

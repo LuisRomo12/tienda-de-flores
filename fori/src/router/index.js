@@ -9,7 +9,6 @@ const Register = () => import('@/views/Register.vue')
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
-
   { path: '/catalogo', name: 'Catalogo', component: Catalog },
   {
     path: '/producto/:id',

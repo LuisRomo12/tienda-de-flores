@@ -126,7 +126,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch} from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -136,19 +136,28 @@ const userName = ref('');
 const isLoggedIn = ref(false);
 
 onMounted(() => {
-  // Intentar recuperar info del usuario del LocalStorage
-  const storedUser = localStorage.getItem('user');
-  if (storedUser) {
-    try {
-      const parsed = JSON.parse(storedUser);
-      userEmail.value = parsed.email || userEmail.value;
-      // Por defecto el backend solo devuelve el email, usaremos la primera parte del email o "Cliente"  
-      userName.value = parsed.email ? parsed.email.split('@')[0] : 'Cliente';
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    isLoggedIn.value = false;
+    return;
+  }
+
+  // Decodificar el email del JWT (FastAPI guarda el email en el campo "sub")
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const email = payload.sub;
+
+    if (email) {
+      userEmail.value = email;
+      userName.value = email.split('@')[0];
       isLoggedIn.value = true;
-    } catch (e) {
+      localStorage.setItem('user', JSON.stringify({ email }));
+    } else {
       isLoggedIn.value = false;
     }
-  } else {
+  } catch (e) {
+    localStorage.removeItem('token');
     isLoggedIn.value = false;
   }
 });

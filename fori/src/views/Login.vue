@@ -94,15 +94,13 @@ const handleLogin = async () => {
     const data = await response.json();
 
     // Guardar el token en localStorage
-    localStorage.setItem('token', data.access_token);
-    
-    // Opcional: Podrías guardar info del usuario también
-    if(data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-    }
+    localStorage.setItem('token', data.access_token || data.token);
 
-    // Redirigir a inicio u otra ruta privada
-    router.push('/');
+    // El backend no devuelve objeto 'user', lo construimos con el email del form
+    const userToSave = data.user || { email: form.email };
+    localStorage.setItem('user', JSON.stringify(userToSave));
+
+    window.location.href = '/perfil';
     
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
