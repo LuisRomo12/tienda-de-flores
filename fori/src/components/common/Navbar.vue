@@ -23,10 +23,10 @@
       </button>
 
       <ul id="nav-menu" :class="['nav-links', { 'is-active': isMobileMenuOpen }]">
-        <li><a href="/" class="active" v-magnetic="{ strength: 0.5 }">Inicio</a></li>
+        <li><a href="/" class="active" v-magnetic="{ strength: 0.5 }">{{ $t('nav.inicio') }}</a></li>
         
         <li class="has-submenu" @mouseenter="openSubmenu('catalog')" @mouseleave="closeSubmenu">
-          <a href="/catalogo" aria-haspopup="true" v-magnetic="{ strength: 0.5 }">Catálogo ▾</a>
+          <a href="/catalogo" aria-haspopup="true" v-magnetic="{ strength: 0.5 }">{{ $t('nav.catalogo') }} ▾</a>
           <ul class="submenu" v-show="activeSubmenu === 'catalog'">
             <li><router-link to="/catalogo" v-magnetic="{ strength: 0.2 }">Todos</router-link></li>
             <li><router-link to="/catalogo?cat=Rosas" v-magnetic="{ strength: 0.2 }">Rosas</router-link></li>
@@ -39,8 +39,8 @@
         </li>
 
         <li><a href="/constructor" class="highlight" v-magnetic="{ strength: 0.8 }">Hazlo tú mismo</a></li>
-        <li><a href="/nosotros" v-magnetic="{ strength: 0.5 }">Nosotros</a></li>
-        <li><a href="/contacto" v-magnetic="{ strength: 0.5 }">Contacto</a></li>
+        <li><a href="/nosotros" v-magnetic="{ strength: 0.5 }">{{ $t('nav.nosotros') }}</a></li>
+        <li><a href="/contacto" v-magnetic="{ strength: 0.5 }">{{ $t('nav.contacto') }}</a></li>
 
         <div class="nav-icons">
           <!-- Botón de Modo Oscuro -->

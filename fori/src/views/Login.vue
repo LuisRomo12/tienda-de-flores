@@ -44,7 +44,10 @@
         </button>
       </form>
 
-      <div class="redirect-container" style="color: black !important;">
+      <div class="redirect-container" style="color: black !important; margin-bottom: 8px;">
+        <router-link to="/recovery" class="redirect-link" style="color: #4a90e2 !important;">¿Olvidaste tu contraseña?</router-link>
+      </div>
+      <div class="redirect-container" style="color: black !important; margin-top: 8px;">
         ¿No tienes una cuenta?
         <router-link to="/register" class="redirect-link" style="color: #4a90e2 !important;">Regístrate aquí</router-link>
       </div>
@@ -55,8 +58,10 @@
 <script setup>
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const isLoading = ref(false);
 const errorMessage = ref('');
 
@@ -93,12 +98,22 @@ const handleLogin = async () => {
 
     const data = await response.json();
 
-    // Guardar el token en localStorage
+    if (data.mfa_required) {
+      // Guardar temp_token para el segundo paso (MFA)
+      authStore.setTempToken(data.temp_token);
+      router.push('/mfa');
+      return;
+    }
+
+    // Flujo normal sin MFA: Guardamos en el Store global
+    authStore.setAccessToken(data.access_token || data.token);
+    
+    // Retrocompatibilidad con localStorage explícito del proyecto
     localStorage.setItem('token', data.access_token || data.token);
 
     // El backend no devuelve objeto 'user', lo construimos con el email del form
     const userToSave = data.user || { email: form.email };
-    localStorage.setItem('user', JSON.stringify(userToSave));
+    authStore.setUser(userToSave);
 
     window.location.href = '/perfil';
     

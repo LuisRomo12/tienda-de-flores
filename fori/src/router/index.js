@@ -62,9 +62,24 @@ const routes = [
     component: () => import('@/views/AddressForm.vue')
   },
   {
+    path: '/settings',
+    name: 'UserSettings',
+    component: () => import('@/views/UserSettings.vue')
+  },
+  {
     path: '/carrito',
     name: 'Carrito',
     component: () => import('@/views/CartView.vue')
+  },
+  {
+    path: '/mfa',
+    name: 'MFAVerify',
+    component: () => import('@/views/MFAVerify.vue')
+  },
+  {
+    path: '/recovery',
+    name: 'Recovery',
+    component: () => import('@/views/Recovery.vue')
   }
 ]
 

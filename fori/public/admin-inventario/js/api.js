@@ -111,6 +111,7 @@ class ApiClient {
         const data = await response.json();
         if (data.access_token) {
             this.setToken(data.access_token);
+            if (data.role) localStorage.setItem('admin_role', data.role);
             return data;
         }
 

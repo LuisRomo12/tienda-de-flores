@@ -70,15 +70,15 @@
           </div>
 
           <!-- Tarjeta: Seguridad (Contraseña) -->
-          <div class="dashboard-card group">
+          <div class="dashboard-card group cursor-pointer" @click="goTo('/settings')">
             <div class="card-icon bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300">
               🔒
             </div>
             <div>
               <h2 class="card-title">Seguridad</h2>
-              <p class="card-desc">Modifica tu contraseña y mantén tu cuenta segura.</p>
+              <p class="card-desc">Modifica tu contraseña, MFA y preferencias.</p>
             </div>
-            <button class="action-btn">Modificar</button>
+            <button class="action-btn">Configurar</button>
           </div>
 
           <!-- Tarjeta: Volver al Inicio -->
@@ -122,18 +122,46 @@
       </div>
     </div>
 
+    <!-- Modal Configuración MFA -->
+    <div v-if="showMfaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl max-w-sm w-full text-center border dark:border-gray-700">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Autenticación Multifactor</h3>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Escanea este código QR con tu aplicación autenticadora (ej. Google Authenticator).</p>
+        
+        <div class="flex justify-center mb-6 bg-white p-4 rounded-lg inline-block border">
+          <qrcode-vue v-if="mfaQrUrl" :value="mfaQrUrl" :size="200" level="M" />
+        </div>
+        
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">O introduce esta clave manualmente:</p>
+        <div class="bg-gray-100 dark:bg-gray-700 p-2 rounded mb-6 font-mono text-lg text-gray-800 dark:text-gray-200 tracking-wider">
+          {{ mfaSecret }}
+        </div>
+        
+        <button @click="closeMfaModal" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
+          Entendido, cerrar
+        </button>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch} from 'vue';
 import { useRouter } from 'vue-router';
+import apiClient from '@/api/axios';
+import QrcodeVue from 'qrcode.vue';
 
 const router = useRouter();
 
 const userEmail = ref('');
 const userName = ref('');
 const isLoggedIn = ref(false);
+
+// Refs para MFA
+const showMfaModal = ref(false);
+const mfaQrUrl = ref('');
+const mfaSecret = ref('');
 
 onMounted(() => {
   const token = localStorage.getItem('token');
@@ -171,6 +199,24 @@ const userInitials = computed(() => {
 
 const goTo = (path) => {
   router.push(path);
+};
+
+const setupMFA = async () => {
+  try {
+    const { data } = await apiClient.post('/api/auth/mfa/setup-totp');
+    mfaQrUrl.value = data.qr_code_url;
+    mfaSecret.value = data.secret;
+    showMfaModal.value = true;
+  } catch (error) {
+    console.error("Error al configurar MFA:", error);
+    alert("Hubo un error al intentar configurar la Autenticación Multifactor.");
+  }
+};
+
+const closeMfaModal = () => {
+  showMfaModal.value = false;
+  mfaQrUrl.value = '';
+  mfaSecret.value = '';
 };
 </script>
 

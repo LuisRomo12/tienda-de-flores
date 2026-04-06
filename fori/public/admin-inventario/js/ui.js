@@ -76,7 +76,9 @@ export default class InventoryUI {
             };
 
             actionsCell.appendChild(editBtn);
-            actionsCell.appendChild(deleteBtn);
+            if (localStorage.getItem('admin_role') === 'admin') {
+                actionsCell.appendChild(deleteBtn);
+            }
 
             // --- AGREGAR TODO A LA FILA EN ORDEN ---
             row.appendChild(imgCell);    // 1. Imagen
@@ -173,7 +175,9 @@ export default class InventoryUI {
             };
 
             actionsCell.appendChild(editBtn);
-            actionsCell.appendChild(deleteBtn);
+            if (localStorage.getItem('admin_role') === 'admin') {
+                actionsCell.appendChild(deleteBtn);
+            }
 
             row.appendChild(imgCell);
             row.appendChild(nameCell);
