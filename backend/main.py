@@ -1,14 +1,19 @@
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, status, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, field_validator
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, text, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, text, ForeignKey, DateTime, Table, Text, TIMESTAMP, func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 from passlib.context import CryptContext
 from jose import jwt, JWTError
+from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import urllib.parse
 import os
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
 import io
 import base64
 from PIL import Image
@@ -23,9 +28,19 @@ except ImportError:
 # --- CONFIGURACIÓN DE SEGURIDAD JWT ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "b3c7d6e4f1a23998b47596c8a7413695") # Cambiar en producción (.env)
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 día
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", b"eYfQwU9f_GjA-qEa18v-tI10k7gT8N6P7l-_9E0D6oQ=")
+cipher_suite = Fernet(ENCRYPTION_KEY)
+ACCESS_TOKEN_EXPIRE_MINUTES = 15 # Changed to 15 mins for better security
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_refresh_token(account_id: int, account_type: str):
+    jti = str(uuid.uuid4())
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"sub": str(account_id), "type": account_type, "jti": jti, "exp": expire}
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt, jti, expire
 
 def verify_password(plain_password, hashed_password):
     # Bcrypt falla si el input tiene > 72 bytes
@@ -87,12 +102,34 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Association tables para RBAC
+user_roles = Table(
+    'user_roles', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+role_permissions = Table(
+    'role_permissions', Base.metadata,
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+    Column('permission_id', Integer, ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
+)
+
 # Modelo de la Tabla (Esto creará la tabla 'users')
 class UserDB(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(255), nullable=True)
+    tema = Column(String, default='claro')
+    idioma = Column(String, default='es')
+    pregunta_secreta = Column(String(255), nullable=True)
+    respuesta_secreta_hash = Column(String(255), nullable=True)
+    recovery_attempts = Column(Integer, default=0)
+    recovery_locked_until = Column(TIMESTAMP, nullable=True)
+    roles = relationship("RoleDB", secondary=user_roles)
 
 class AdminDB(Base):
     __tablename__ = "admins"
@@ -101,6 +138,11 @@ class AdminDB(Base):
     password_hash = Column(String, nullable=False)
     nombre = Column(String)
     activo = Column(Boolean, default=True)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(255), nullable=True)
+    tema = Column(String, default='claro')
+    idioma = Column(String, default='es')
+    rol = Column(String, default='editor')
 
 class DireccionDB(Base):
     __tablename__ = "direcciones"
@@ -121,16 +163,58 @@ class DireccionDB(Base):
     es_principal = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class RoleDB(Base):
+    __tablename__ = 'roles'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, nullable=False)
+    description = Column(Text)
+    permissions = relationship("PermissionDB", secondary=role_permissions)
+
+class PermissionDB(Base):
+    __tablename__ = 'permissions'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, nullable=False)
+    description = Column(Text)
+
+class SessionDB(Base):
+    __tablename__ = 'sessions'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(Integer, nullable=False)
+    account_type = Column(String(10), nullable=False) # 'user' or 'admin'
+    refresh_token_jti = Column(String(255), unique=True, nullable=False)
+    user_agent = Column(Text)
+    ip_address = Column(String(45))
+    expires_at = Column(TIMESTAMP, nullable=False)
+    is_revoked = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+class PasswordRecoveryDB(Base):
+    __tablename__ = 'password_recovery'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(Integer, nullable=False)
+    account_type = Column(String(10), nullable=False)
+    token_hash = Column(String(255), nullable=False)
+    expires_at = Column(TIMESTAMP, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI()
+
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173", 
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:5501",
         "http://127.0.0.1:5501"
     ],
@@ -231,7 +315,7 @@ async def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = D
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         role: str = payload.get("role")
-        if username is None or role != "web_admin":
+        if username is None or role not in ["admin", "editor", "web_admin"]:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -258,6 +342,21 @@ async def get_current_user(token: str = Depends(oauth2_user_scheme), db: Session
     user = db.query(UserDB).filter(UserDB.email == email).first()
     if user is None:
         raise credentials_exception
+    
+    # Session Replay Protection: Verificar que tenga al menos una sesión activa (no revocada)
+    active_session = db.query(SessionDB).filter(
+        SessionDB.account_id == user.id, 
+        SessionDB.account_type == "user", 
+        SessionDB.is_revoked == False
+    ).first()
+    
+    if not active_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Su sesión ha sido revocada o cerrada remotamente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
     return user
 
 @app.post("/api/register", status_code=status.HTTP_201_CREATED)
@@ -290,8 +389,16 @@ async def register_admin(admin: AdminCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Administrador registrado exitosamente"}
 
+# --- SEGURIDAD: PREVENCIÓN DE VULNERABILIDADES ---
+# 1. SQL Injection (SQLi): Se previene con el uso implícito de queries parametrizadas mediante SQLAlchemy (ej. DB.query o text(".. :val")).
+# 2. XSS (Cross-Site Scripting): En el backend se asegura no sirviendo HTML, retornando puramente Content-Type application/json. Vue.js en el front-end auto-escapa HTML en interpolaciones automáticamente.
+# 3. CSRF (Cross-Site Request Forgery): Prevenido combinando el uso de Bearer Tokens para state-changing actions y configurando cookies SameSite=lax.
+# 4. Brute Force y Credential Stuffing: Prevenido configurando límites estrictos (@limiter.limit) en todos los endpoints de autenticación y recuperación.
+# 5. Session Hijacking & Token Replay: Tokens de acceso tienen caducidad muy corta (15 min). La base de datos de sesiones registra los UUID (jti) de cada refresh token. Si se revoca la sesión activa (logout, o ataque), se bloquea para siempre chequeando `is_revoked`.
+
 @app.post("/api/admin/login")
-async def login_admin(admin: AdminLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login_admin(request: Request, response: Response, admin: AdminLogin, db: Session = Depends(get_db)):
     db_admin = db.query(AdminDB).filter(AdminDB.username == admin.username).first()
     if not db_admin:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El usuario o la contraseña son incorrectos")
@@ -302,16 +409,41 @@ async def login_admin(admin: AdminLogin, db: Session = Depends(get_db)):
     if not db_admin.activo:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta cuenta de administrador está inactiva")
 
+    if db_admin.mfa_enabled:
+        temp_token_expires = timedelta(minutes=5)
+        temp_token = create_access_token(
+            data={"sub": str(db_admin.id), "role": "web_admin", "type": "admin", "mfa_pending": True}, 
+            expires_delta=temp_token_expires
+        )
+        return {"mfa_required": True, "temp_token": temp_token}
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    # Aquí podríamos agregar un campo de rol (ej: "role": "web_admin") si planeas integrar con el JWT de PostgREST
     access_token = create_access_token(
-        data={"sub": db_admin.username, "role": "web_admin"}, expires_delta=access_token_expires
+        data={"sub": db_admin.username, "role": db_admin.rol, "type": "admin"}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer", "nombre": db_admin.nombre}
+    refresh_token, jti, expires_at = create_refresh_token(db_admin.id, "admin")
+
+    active_sessions = db.query(SessionDB).filter(
+        SessionDB.account_id == db_admin.id,
+        SessionDB.account_type == "admin",
+        SessionDB.is_revoked == False
+    ).all()
+    if len(active_sessions) >= 3:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Límite de sesiones activas alcanzado (Máx 3). Cierra sesiones en otros dispositivos antes de continuar.")
+
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+    
+    db_session = SessionDB(account_id=db_admin.id, account_type="admin", refresh_token_jti=jti, expires_at=expires_at, user_agent=user_agent, ip_address=ip_address)
+    db.add(db_session)
+    db.commit()
+
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", expires=expires_at.strftime("%a, %d %b %Y %H:%M:%S GMT"))
+    return {"access_token": access_token, "token_type": "bearer", "nombre": db_admin.nombre, "role": db_admin.rol}
 
 @app.post("/api/login")
-async def login_user(user: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login_user(request: Request, response: Response, user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
     if not db_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El correo o la contraseña son incorrectos")
@@ -319,12 +451,89 @@ async def login_user(user: UserLogin, db: Session = Depends(get_db)):
     if not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El correo o la contraseña son incorrectos")
     
-    # Usuario válido -> Crear Token
+    if db_user.mfa_enabled:
+        temp_token_expires = timedelta(minutes=5)
+        temp_token = create_access_token(
+            data={"sub": str(db_user.id), "type": "user", "mfa_pending": True}, 
+            expires_delta=temp_token_expires
+        )
+        return {"mfa_required": True, "temp_token": temp_token}
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": db_user.email}, expires_delta=access_token_expires
+        data={"sub": db_user.email, "type": "user"}, expires_delta=access_token_expires
     )
+    refresh_token, jti, expires_at = create_refresh_token(db_user.id, "user")
+
+    active_sessions = db.query(SessionDB).filter(
+        SessionDB.account_id == db_user.id,
+        SessionDB.account_type == "user",
+        SessionDB.is_revoked == False
+    ).all()
+    if len(active_sessions) >= 3:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Límite de sesiones activas alcanzado (Máx 3). Cierra sesiones en otros dispositivos antes de continuar.")
+
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+    
+    db_session = SessionDB(account_id=db_user.id, account_type="user", refresh_token_jti=jti, expires_at=expires_at, user_agent=user_agent, ip_address=ip_address)
+    db.add(db_session)
+    db.commit()
+
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, samesite="lax", expires=expires_at.strftime("%a, %d %b %Y %H:%M:%S GMT"))
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/refresh")
+async def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No se encontró token de actualización")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        account_id = int(payload.get("sub"))
+        account_type = payload.get("type")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+        
+    db_session = db.query(SessionDB).filter(SessionDB.refresh_token_jti == jti).first()
+    if not db_session or db_session.is_revoked or db_session.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Sesión expirada o revocada")
+        
+    if account_type == "admin":
+        admin = db.query(AdminDB).filter(AdminDB.id == account_id).first()
+        access_token = create_access_token(data={"sub": admin.username, "role": "web_admin", "type": "admin"})
+    else:
+        user = db.query(UserDB).filter(UserDB.id == account_id).first()
+        access_token = create_access_token(data={"sub": user.email, "type": "user"})
+        
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/logout")
+async def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    token = request.cookies.get("refresh_token")
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            jti = payload.get("jti")
+            db_session = db.query(SessionDB).filter(SessionDB.refresh_token_jti == jti).first()
+            if db_session:
+                db_session.is_revoked = True
+                db.commit()
+        except:
+            pass
+    response.delete_cookie("refresh_token")
+    return {"message": "Sesión cerrada"}
+
+@app.get("/api/auth/me")
+async def get_me(current_user: UserDB = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "mfa_enabled": current_user.mfa_enabled,
+        "idioma": current_user.idioma,
+        "tema": current_user.tema
+    }
 
 # ================================================================
 #  NUEVAS RUTAS FRONTEND PÚBLICAS
@@ -513,11 +722,13 @@ async def update_flor(flor_id: int, flor: dict, db: Session = Depends(get_db), c
 
 @app.delete("/api/admin/flores/{flor_id}")
 async def delete_flor(flor_id: int, db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
-    query = text("DELETE FROM flores WHERE id = :flor_id RETURNING id")
-    result = db.execute(query, {"flor_id": flor_id})
-    db.commit()
-    if not result.fetchone():
+    if current_admin.rol != "admin":
+        raise HTTPException(status_code=403, detail="Ruta protegida por RBAC: Solo los Admins pueden borrar productos")
+    db_flor = db.query(FlorDB).filter(FlorDB.id == flor_id).first()
+    if not db_flor:
         raise HTTPException(status_code=404, detail="Flor no encontrada")
+    db.delete(db_flor)
+    db.commit()
     return {"message": "Flor eliminada exitosamente"}
 
 @app.get("/api/admin/accesorios_categorias")
@@ -585,11 +796,13 @@ async def update_accesorio(accesorio_id: int, acc: dict, db: Session = Depends(g
 
 @app.delete("/api/admin/accesorios/{accesorio_id}")
 async def delete_accesorio(accesorio_id: int, db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
-    query = text("DELETE FROM accesorios WHERE id = :accesorio_id RETURNING id")
-    result = db.execute(query, {"accesorio_id": accesorio_id})
-    db.commit()
-    if not result.fetchone():
+    if current_admin.rol != "admin":
+        raise HTTPException(status_code=403, detail="Ruta protegida por RBAC: Solo los Admins pueden borrar productos")
+    db_accesorio = db.query(AccesorioDB).filter(AccesorioDB.id == accesorio_id).first()
+    if not db_accesorio:
         raise HTTPException(status_code=404, detail="Accesorio no encontrado")
+    db.delete(db_accesorio)
+    db.commit()
     return {"message": "Accesorio eliminado exitosamente"}
 
 @app.get("/api/admin/vista_pedidos")
@@ -654,8 +867,95 @@ async def get_resumen_ventas(limit: int = None, db: Session = Depends(get_db), c
     return ventas
 
 # ================================================================
-#  NUEVAS RUTAS FRONTEND PRIVADAS (USUARIO)
+#  NUEVAS RUTAS FRONTEND PRIVADAS (USUARIO / SETTINGS)
 # ================================================================
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class PreferencesUpdateRequest(BaseModel):
+    tema: str
+    idioma: str
+
+def parse_user_agent(ua_string: str) -> str:
+    if not ua_string: 
+        return "Dispositivo Desconocido"
+    ua = ua_string.lower()
+    os = "Windows" if "windows" in ua else "Mac" if "mac" in ua else "Linux" if "linux" in ua else "Android" if "android" in ua else "iOS" if "iphone" in ua or "ipad" in ua else "Otro OS"
+    browser = "Chrome" if "chrome" in ua and "edg" not in ua else "Edge" if "edg" in ua else "Firefox" if "firefox" in ua else "Safari" if "safari" in ua else "Otro Navegador"
+    return f"{os} - {browser}"
+
+@app.put("/api/users/me/password")
+async def change_password(req: PasswordChangeRequest, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    if not verify_password(req.old_password, current_user.password):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+    
+    current_user.password = get_password_hash(req.new_password)
+    db.commit()
+    return {"message": "Contraseña actualizada exitosamente"}
+
+@app.post("/api/users/me/mfa/toggle")
+async def toggle_mfa(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    # Si esta habilitado, lo deshabilita. (Para habilitar, usan setup-totp existente)
+    if current_user.mfa_enabled:
+        current_user.mfa_enabled = False
+        current_user.mfa_secret = None
+        db.commit()
+        return {"message": "MFA deshabilitado correctamente"}
+    else:
+        # Esto solo lo llaman para apagar, para encender, es en el otro endpoint.
+        raise HTTPException(status_code=400, detail="Para activar MFA debe configurar el código QR.")
+
+@app.get("/api/users/me/sessions")
+async def get_user_sessions(request: Request, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    token = request.cookies.get("refresh_token")
+    current_jti = None
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            current_jti = payload.get("jti")
+        except:
+            pass
+            
+    sessions = db.query(SessionDB).filter(
+        SessionDB.account_id == current_user.id,
+        SessionDB.account_type == "user",
+        SessionDB.is_revoked == False,
+        SessionDB.expires_at > datetime.utcnow()
+    ).all()
+    
+    return [
+        {
+            "id": str(s.id),
+            "ip_address": s.ip_address or "IP Oculta",
+            "device": parse_user_agent(s.user_agent),
+            "created_at": s.created_at,
+            "expires_at": s.expires_at,
+            "is_current": s.refresh_token_jti == current_jti
+        } 
+        for s in sessions
+    ]
+
+@app.delete("/api/users/me/sessions/{session_id}")
+async def revoke_remote_session(session_id: str, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    db_session = db.query(SessionDB).filter(SessionDB.id == session_id, SessionDB.account_id == current_user.id).first()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    db_session.is_revoked = True
+    db.commit()
+    return {"message": "Sesión revocada exitosamente"}
+
+@app.put("/api/users/me/preferences")
+async def update_preferences(req: PreferencesUpdateRequest, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    current_user.tema = req.tema
+    current_user.idioma = req.idioma
+    db.commit()
+    return {"message": "Preferencias actualizadas", "tema": current_user.tema, "idioma": current_user.idioma}
+
+@app.get("/api/users/me/preferences")
+async def get_preferences(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    return {"tema": current_user.tema, "idioma": current_user.idioma, "mfa_enabled": current_user.mfa_enabled}
 
 @app.get("/api/user/direcciones", response_model=list[DireccionResponse])
 async def get_user_direcciones(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
@@ -848,3 +1148,16 @@ async def delete_cart_item(item_id: int, db: Session = Depends(get_db), current_
     db.execute(query_delete, {"item_id": item_id})
     db.commit()
     return {"message": "Item eliminado del carrito"}
+
+from auth_extras import router as auth_extras_router
+app.include_router(auth_extras_router)
+
+# --- INCLUSIÓN DE MICROSERVICIOS AISLADOS (PARTE 4, 5 Y 6) ---
+from routers.auth_service import router as ms_auth_router
+from routers.catalog_service import router as ms_catalog_router
+from routers.cart_service import router as ms_cart_router
+
+# Enrutamiento tipo API Gateway Interno
+app.include_router(ms_auth_router)
+app.include_router(ms_catalog_router)
+app.include_router(ms_cart_router)
