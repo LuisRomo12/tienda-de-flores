@@ -1,0 +1,55 @@
+name: Automatización de Pruebas y Despliegue (CI/CD)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    name: "Integración Continua - Pruebas y Build"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Instalar dependencias del Backend
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          pip install pytest httpx pytest-asyncio
+
+      - name: Ejecutar pruebas de Seguridad (PARTE 3)
+        run: |
+          cd backend
+          pytest test_security.py --maxfail=1 --disable-warnings -v
+          
+      - name: Configurar Node.js (Frontend Vue)
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Instalar dependencias Frontend y Build
+        run: |
+          cd fori
+          npm install
+          npm run build
+
+  deploy:
+    name: "Despliegue Continuo (CD)"
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Desplegar en Producción (Simulado)
+        run: echo "Desplegando la API y el Frontend a producción mediante GitHub Actions =)"
