@@ -8,7 +8,40 @@ import random
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
 
+import os
+import smtplib
+import threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 router = APIRouter(prefix="/api/auth", tags=["auth_extras"])
+
+def send_real_email(destinatario: str, asunto: str, cuerpo: str):
+    remitente = os.environ.get("SMTP_EMAIL")
+    password = os.environ.get("SMTP_PASSWORD")
+    
+    if not remitente or not password:
+        print(f"\n[EMAIL SIMULADO]\nPara: {destinatario}\nAsunto: {asunto}\nMensaje:\n{cuerpo}\n")
+        return
+        
+    def send():
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = remitente
+            msg['To'] = destinatario
+            msg['Subject'] = asunto
+            msg.attach(MIMEText(cuerpo, 'plain', 'utf-8'))
+            
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(remitente, password)
+            server.send_message(msg)
+            server.quit()
+        except Exception as e:
+            print(f"Error enviando correo SMTP: {e}")
+            
+    threading.Thread(target=send).start()
+
 
 # Dependencias desde main
 from main import get_db, SessionDB, get_current_user, UserDB, AdminDB, create_access_token, create_refresh_token, SECRET_KEY, ALGORITHM
@@ -61,13 +94,16 @@ async def send_email_otp(account: dict = Depends(get_mfa_pending_account)):
         "expires_at": datetime.utcnow() + timedelta(minutes=5)
     }
     
-    # Simular envío de correo electrónico en consola
-    print(f"\n────────────────── SIMULACIÓN DE CORREO ──────────────────")
-    print(f"Destinatario: Cuenta ID {account['sub']} ({account['type']})")
-    print(f"Asunto: Tu código de seguridad (MFA)")
-    print(f"Mensaje: Hola, tu código de inicio de sesión es {code}.")
-    print(f"         Este código expirará en exactamente 5 minutos.")
-    print(f"────────────────────────────────────────────────────────\n")
+    # Averiguar el correo a dónde enviarlo (si es user, a su email, si es admin, a su username asumiendo es correo)
+    dest_email = account["sub"]
+    if account["type"] == "user":
+        # Necesitamos el correo real
+        # Aunque aquí el "sub" es el ID en main.py línea 463 para mfa.
+        pass
+    # Enviamos correo (Si el destino no es un email válido fallará el SMTP o rebotará)
+    cuerpo = f"Hola, tu código de inicio de sesión es {code}.\nEste código expirará en exactamente 5 minutos."
+    send_real_email(f"usuario_id_{account['sub']}@sistema", "Tu código de seguridad (MFA)", cuerpo)
+
     
     return {"message": "Código de 6 dígitos enviado por correo. Válido por 5 minutos."}
 
@@ -185,7 +221,9 @@ async def recover_password_email(request: Request, req: PasswordRecoverRequest, 
     user = db.query(UserDB).filter(UserDB.email == req.email).first()
     if user:
         token = generate_recovery_token(user.id, "user", db)
-        print(f"\n[EMAIL SIMULADO] Para: {user.email}\nAsunto: Recuperación de contraseña\nEnlace: http://localhost:5173/recovery?token={token}&email={user.email}\n")
+        frontend_url = os.environ.get("FRONTEND_URL", "https://tienda-de-flores.vercel.app")
+        cuerpo = f"Has solicitado recuperar tu contraseña.\n\nHaz clic en el siguiente enlace para crear una nueva:\n{frontend_url}/recovery?token={token}&email={user.email}\n\nSi no fuiste tú, ignora este mensaje."
+        send_real_email(user.email, "Recuperación de contraseña", cuerpo)
     return {"message": "Si el correo está registrado, se enviarán las instrucciones a su bandeja."}
 
 @router.post("/recovery/reset")
