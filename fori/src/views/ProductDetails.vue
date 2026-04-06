@@ -356,11 +356,11 @@ const loadInitialData = async () => {
         const id = route.params.id;
         
         // Fetch Categories first to map the ID
-        const resCat = await fetch('http://localhost:8000/api/categorias');
+        const resCat = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/categorias`);
         categorias.value = await resCat.json();
 
         // Fetch Product Details
-        const res = await fetch(`http://localhost:8000/api/flores/${id}`);
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/flores/${id}`);
         if(res.ok) {
             flor.value = await res.json();
             // Default selected color can be based on category or name if smart enough, 
@@ -392,7 +392,7 @@ const addToCart = async () => {
             cantidad: quantity.value
         };
 
-        const res = await fetch('http://localhost:8000/api/user/carrito/items', {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/carrito/items`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

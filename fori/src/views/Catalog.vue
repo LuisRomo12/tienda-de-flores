@@ -200,10 +200,10 @@ const selectCategory = (catId, catNombre) => {
 const cargarDatos = async () => {
     try {
         // Obtenemos los datos directos del backend de FastAPI
-        const resCategorias = await fetch('http://localhost:8000/api/categorias');
+        const resCategorias = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/categorias`);
         categorias.value = await resCategorias.json();
 
-        const resFlores = await fetch('http://localhost:8000/api/flores');
+        const resFlores = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/flores`);
         flores.value = await resFlores.json();
 
         // Apply initially mapped category

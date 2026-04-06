@@ -53,7 +53,7 @@ const executeSearch = async () => {
   try {
     console.time('busqueda-api');
     // Conexión a la API del Backend (FastAPI)
-    const response = await axios.get(`http://127.0.0.1:8000/api/search?q=${query.value}`);
+    const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/search?q=${query.value}`);
     console.timeEnd('busqueda-api');
     resultados.value = response.data.results;
     console.log("Evidencia API JSON:", response.data); // Para tu captura de pantalla

@@ -164,7 +164,7 @@ const fetchCart = async () => {
   }
 
   try {
-    const res = await fetch('http://localhost:8000/api/user/carrito', {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/carrito`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -191,7 +191,7 @@ const updateQuantity = async (item, change) => {
   item.updating = true;
 
   try {
-    const res = await fetch(`http://localhost:8000/api/user/carrito/items/${item.id}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/carrito/items/${item.id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ const removeItem = async (itemId) => {
   if (targetItem) targetItem.updating = true;
 
   try {
-    const res = await fetch(`http://localhost:8000/api/user/carrito/items/${itemId}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/carrito/items/${itemId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`

@@ -17,7 +17,7 @@ export const fetchData = async (endpoint) => {
   }
 
   try {
-    const response = await fetch(`http://localhost:8000/api${endpoint}`, { signal });
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api${endpoint}`, { signal });
     if (!response.ok) throw new Error("Error en la carga de datos");
     
     const data = await response.ok ? await response.json() : null;

@@ -378,7 +378,7 @@ const submitAddress = async () => {
     // Determine locality mapping
     payload.localidad = payload.colonia // Fori uses locality/colonia interchangeably in form
 
-    const response = await fetch('http://localhost:8000/api/user/direcciones', {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/direcciones`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

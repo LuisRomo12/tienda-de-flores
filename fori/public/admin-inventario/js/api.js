@@ -1,6 +1,7 @@
 // api.js: Cliente central para consumir la API de PostgREST
 
-const API_BASE_URL = 'http://localhost:8000/api/admin'; // API en FastAPI
+const BASE_HOST_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com';
+const API_BASE_URL = `${BASE_HOST_URL}/api/admin`; // API en FastAPI
 const TOKEN_KEY = 'admin_jwt_token';
 
 class ApiClient {
@@ -95,7 +96,7 @@ class ApiClient {
     // --- ENDPOINTS ESPECÍFICOS ---
 
     async loginAdmin(username, password) {
-        const response = await fetch('http://localhost:8000/api/admin/login', {
+        const response = await fetch(`${BASE_HOST_URL}/api/admin/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

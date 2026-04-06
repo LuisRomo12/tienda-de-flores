@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             try {
-                const response = await fetch('http://localhost:8000/api/admin/register', {
+                const response = await fetch(`${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com'}/api/admin/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

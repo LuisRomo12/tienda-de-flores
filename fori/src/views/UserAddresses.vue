@@ -145,7 +145,7 @@ const fetchDirecciones = async () => {
       return
     }
 
-    const response = await fetch('http://localhost:8000/api/user/direcciones', {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/direcciones`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -168,7 +168,7 @@ const deleteAddress = async (id) => {
 
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch(`http://localhost:8000/api/user/direcciones/${id}`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/direcciones/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -189,7 +189,7 @@ const deleteAddress = async (id) => {
 const setPrincipal = async (id) => {
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch(`http://localhost:8000/api/user/direcciones/${id}/principal`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api/user/direcciones/${id}/principal`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`
