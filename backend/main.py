@@ -93,10 +93,16 @@ def compress_image_b64(base64_string: str, max_dimension: int = 800, quality: in
         return base64_string  # If compression fails, return the original string safely
 
 # --- CONFIGURACIÓN DE DB ---
-usuario = os.environ.get("DB_USER", "postgres")
-password = os.environ.get("DB_PASSWORD", "password_secreta")
-password_encoded = urllib.parse.quote_plus(password)
-DATABASE_URL = f"postgresql://{usuario}:{password_encoded}@localhost:5432/floreria_db"
+db_url_env = os.environ.get("DATABASE_URL")
+if db_url_env:
+    if db_url_env.startswith("postgres://"):
+        db_url_env = db_url_env.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = db_url_env
+else:
+    usuario = os.environ.get("DB_USER", "postgres")
+    password = os.environ.get("DB_PASSWORD", "password_secreta")
+    password_encoded = urllib.parse.quote_plus(password)
+    DATABASE_URL = f"postgresql://{usuario}:{password_encoded}@localhost:5432/floreria_db"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
