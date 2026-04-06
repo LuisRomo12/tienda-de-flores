@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth.js';
 import router from '../router/index.js';
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com'),
+  baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com'),
   // Permite el envío de cookies HttpOnly
   withCredentials: true, 
 });
@@ -79,9 +79,12 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
+        const hadToken = !!authStore.state.accessToken;
         authStore.logout();
-        alert("Su sesión ha expirado. Por favor, inicie sesión nuevamente.");
-        router.push('/login');
+        if (hadToken) {
+          alert("Su sesión ha expirado. Por favor, inicie sesión nuevamente.");
+          router.push('/login');
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
