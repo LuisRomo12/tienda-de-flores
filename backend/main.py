@@ -278,7 +278,24 @@ def force_migration(db: Session = Depends(get_db)):
         "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
         "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;",
         "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
-        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;"
+        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;",
+        """
+        CREATE TABLE IF NOT EXISTS carrito (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS carrito_items (
+            id SERIAL PRIMARY KEY,
+            carrito_id INTEGER REFERENCES carrito(id) ON DELETE CASCADE,
+            flor_id INTEGER REFERENCES flores(id) ON DELETE CASCADE NULL,
+            accesorio_id INTEGER REFERENCES accesorios(id) ON DELETE CASCADE NULL,
+            cantidad INTEGER NOT NULL DEFAULT 1,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
     ]
     results = {}
     for q in mig_queries:
