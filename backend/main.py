@@ -1177,54 +1177,59 @@ async def get_user_cart(db: Session = Depends(get_db), current_user: UserDB = De
 
 @app.post("/api/user/carrito/items")
 async def add_item_to_cart(item: CartItemCreate, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
-    if not item.flor_id and not item.accesorio_id:
-        raise HTTPException(status_code=400, detail="Debe especificar una flor_id o accesorio_id")
-    if item.flor_id and item.accesorio_id:
-        raise HTTPException(status_code=400, detail="Especifique sólo una flor_id o accesorio_id, no ambos")
+    try:
+        if not item.flor_id and not item.accesorio_id:
+            raise HTTPException(status_code=400, detail="Debe especificar una flor_id o accesorio_id")
+        if item.flor_id and item.accesorio_id:
+            raise HTTPException(status_code=400, detail="Especifique sólo una flor_id o accesorio_id, no ambos")
+            
+        # Obtener el carrito
+        query_cart = text("SELECT id FROM carrito WHERE user_id = :user_id")
+        cart_row = db.execute(query_cart, {"user_id": current_user.id}).fetchone()
         
-    # Obtener el carrito
-    query_cart = text("SELECT id FROM carrito WHERE user_id = :user_id")
-    cart_row = db.execute(query_cart, {"user_id": current_user.id}).fetchone()
-    
-    if not cart_row:
-        query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING id")
-        cart_row = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
-        db.commit()
-    
-    carrito_id = cart_row[0]
-
-    # Verificar si el item ya existe en el carrito
-    if item.flor_id:
-        query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND flor_id = :flor_id")
-        params = {"carrito_id": carrito_id, "flor_id": item.flor_id}
-    else:
-        query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND accesorio_id = :accesorio_id")
-        params = {"carrito_id": carrito_id, "accesorio_id": item.accesorio_id}
+        if not cart_row:
+            query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING id")
+            cart_row = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
+            db.commit()
         
-    existing_item = db.execute(query_check, params).fetchone()
+        carrito_id = cart_row[0]
 
-    if existing_item:
-        # Si existe, sumamos la cantidad
-        nueva_cantidad = existing_item[1] + item.cantidad
-        query_update = text("UPDATE carrito_items SET cantidad = :cantidad WHERE id = :id RETURNING *")
-        db.execute(query_update, {"cantidad": nueva_cantidad, "id": existing_item[0]})
-        db.commit()
-        return {"message": "Cantidad actualizada en el carrito", "item_id": existing_item[0]}
-    else:
-        # Si no existe, lo insertamos
-        query_insert_item = text("""
-            INSERT INTO carrito_items (carrito_id, flor_id, accesorio_id, cantidad) 
-            VALUES (:carrito_id, :flor_id, :accesorio_id, :cantidad) RETURNING *
-        """)
-        insert_params = {
-            "carrito_id": carrito_id, 
-            "flor_id": item.flor_id, 
-            "accesorio_id": item.accesorio_id, 
-            "cantidad": item.cantidad
-        }
-        new_item = db.execute(query_insert_item, insert_params).fetchone()
-        db.commit()
-        return {"message": "Item agregado al carrito", "item_id": new_item[0]}
+        # Verificar si el item ya existe en el carrito
+        if item.flor_id:
+            query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND flor_id = :flor_id")
+            params = {"carrito_id": carrito_id, "flor_id": item.flor_id}
+        else:
+            query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND accesorio_id = :accesorio_id")
+            params = {"carrito_id": carrito_id, "accesorio_id": item.accesorio_id}
+            
+        existing_item = db.execute(query_check, params).fetchone()
+
+        if existing_item:
+            # Si existe, sumamos la cantidad
+            nueva_cantidad = existing_item[1] + item.cantidad
+            query_update = text("UPDATE carrito_items SET cantidad = :cantidad WHERE id = :id RETURNING *")
+            db.execute(query_update, {"cantidad": nueva_cantidad, "id": existing_item[0]})
+            db.commit()
+            return {"message": "Cantidad actualizada en el carrito", "item_id": existing_item[0]}
+        else:
+            # Si no existe, lo insertamos
+            query_insert_item = text("""
+                INSERT INTO carrito_items (carrito_id, flor_id, accesorio_id, cantidad) 
+                VALUES (:carrito_id, :flor_id, :accesorio_id, :cantidad) RETURNING *
+            """)
+            insert_params = {
+                "carrito_id": carrito_id, 
+                "flor_id": item.flor_id, 
+                "accesorio_id": item.accesorio_id, 
+                "cantidad": item.cantidad
+            }
+            new_item = db.execute(query_insert_item, insert_params).fetchone()
+            db.commit()
+            return {"message": "Item agregado al carrito", "item_id": new_item[0]}
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=400, detail=f"Backend Error: {str(e)} | Type: {type(e).__name__} | Trace: {tb[-200:]}")
 
 @app.patch("/api/user/carrito/items/{item_id}")
 async def update_cart_item(item_id: int, payload: CartItemUpdate, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
