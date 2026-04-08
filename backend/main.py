@@ -207,26 +207,7 @@ class PasswordRecoveryDB(Base):
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
 
-@app.get("/api/admin/force-migration")
-def force_migration(db: Session = Depends(get_db)):
-    mig_queries = [
-        "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
-        "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
-        "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
-        "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;",
-        "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
-        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;"
-    ]
-    results = {}
-    for q in mig_queries:
-        try:
-            db.execute(text(q))
-            db.commit()
-            results[q] = "Exito"
-        except Exception as e:
-            db.rollback()
-            results[q] = f"Error: {e}"
-    return results
+
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -257,6 +238,27 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@app.get("/api/admin/force-migration")
+def force_migration(db: Session = Depends(get_db)):
+    mig_queries = [
+        "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
+        "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
+        "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
+        "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;",
+        "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
+        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;"
+    ]
+    results = {}
+    for q in mig_queries:
+        try:
+            db.execute(text(q))
+            db.commit()
+            results[q] = "Exito"
+        except Exception as e:
+            db.rollback()
+            results[q] = f"Error: {e}"
+    return results
 
 # --- MODELOS DE VALIDACIÓN (Pydantic) ---
 class UserCreate(BaseModel):
