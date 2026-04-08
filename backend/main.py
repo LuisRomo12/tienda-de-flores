@@ -207,6 +207,20 @@ class PasswordRecoveryDB(Base):
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
 
+# Auto-migrar columnas faltantes para evitar errores 500 en producción (Render)
+mig_queries = [
+    "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
+    "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
+    "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
+    "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;"
+]
+for q in mig_queries:
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(q))
+    except Exception:
+        pass
+
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
