@@ -264,13 +264,22 @@ def force_migration(db: Session = Depends(get_db)):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS accesorios_categorias (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            icono VARCHAR(50)
+        );
+        """,
+        """
         CREATE TABLE IF NOT EXISTS accesorios (
             id SERIAL PRIMARY KEY,
             nombre VARCHAR(255) NOT NULL,
-            importe NUMERIC(10, 2) NOT NULL,
+            categoria_id INTEGER REFERENCES accesorios_categorias(id),
+            precio NUMERIC(10, 2) NOT NULL,
             stock INTEGER DEFAULT 0,
-            activo BOOLEAN DEFAULT true,
-            imagen_data TEXT
+            imagen_data TEXT,
+            descripcion TEXT,
+            sku VARCHAR(50)
         );
         """,
         "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
@@ -295,6 +304,27 @@ def force_migration(db: Session = Depends(get_db)):
             cantidad INTEGER NOT NULL DEFAULT 1,
             added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS pedidos (
+            id SERIAL PRIMARY KEY,
+            fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            estado VARCHAR(50) DEFAULT 'pendiente',
+            total NUMERIC(10, 2) DEFAULT 0,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE OR REPLACE VIEW vista_pedidos AS 
+        SELECT p.*, u.email as usuario_email 
+        FROM pedidos p 
+        LEFT JOIN users u ON p.user_id = u.id;
+        """,
+        """
+        CREATE OR REPLACE VIEW resumen_ventas_diario AS 
+        SELECT DATE(fecha_pedido) as dia, count(*) as cantidad_pedidos, SUM(total) as ingresos 
+        FROM pedidos 
+        GROUP BY DATE(fecha_pedido);
         """
     ]
     results = {}
