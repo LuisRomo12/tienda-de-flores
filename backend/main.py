@@ -242,6 +242,37 @@ def get_db():
 @app.get("/api/admin/force-migration")
 def force_migration(db: Session = Depends(get_db)):
     mig_queries = [
+        """
+        CREATE TABLE IF NOT EXISTS categorias (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS flores (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            categoria_id INTEGER REFERENCES categorias(id),
+            precio NUMERIC(10, 2) NOT NULL,
+            stock INTEGER DEFAULT 0,
+            imagen_url TEXT,
+            imagenes_extra TEXT,
+            descripcion_detallada TEXT,
+            sku VARCHAR(50),
+            tags VARCHAR(200),
+            recomendaciones TEXT
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS accesorios (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            importe NUMERIC(10, 2) NOT NULL,
+            stock INTEGER DEFAULT 0,
+            activo BOOLEAN DEFAULT true,
+            imagen_data TEXT
+        );
+        """,
         "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
         "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
         "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
