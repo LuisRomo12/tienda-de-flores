@@ -1114,66 +1114,72 @@ async def delete_user_direccion(dir_id: int, db: Session = Depends(get_db), curr
 
 @app.get("/api/user/carrito")
 async def get_user_cart(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
-    # 1. Obtener o crear el carrito del usuario
-    query_cart = text("SELECT * FROM carrito WHERE user_id = :user_id")
-    result_cart = db.execute(query_cart, {"user_id": current_user.id}).fetchone()
-    
-    if not result_cart:
-        query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING *")
-        result_cart = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
-        db.commit()
+    try:
+        # 1. Obtener o crear el carrito del usuario
+        query_cart = text("SELECT * FROM carrito WHERE user_id = :user_id")
+        result_cart = db.execute(query_cart, {"user_id": current_user.id}).fetchone()
         
-    carrito_id = dict(zip(result_cart._mapping.keys(), result_cart))["id"]
-
-    # 2. Obtener los items del carrito con la info (Join con flores y accesorios)
-    query_items = text("""
-        SELECT 
-            ci.id as item_id, 
-            ci.cantidad,
-            f.id as flor_id, f.nombre as flor_nombre, f.precio as flor_precio, f.imagen_url as flor_imagen,
-            a.id as accesorio_id, a.nombre as accesorio_nombre, a.precio as accesorio_precio, a.imagen_data as accesorio_imagen
-        FROM carrito_items ci
-        LEFT JOIN flores f ON ci.flor_id = f.id
-        LEFT JOIN accesorios a ON ci.accesorio_id = a.id
-        WHERE ci.carrito_id = :carrito_id
-        ORDER BY ci.added_at ASC
-    """)
-    result_items = db.execute(query_items, {"carrito_id": carrito_id})
-    
-    items_formateados = []
-    for row in result_items:
-        row_dict = dict(zip(row._mapping.keys(), row))
-        
-        # Determine si es flor o accesorio
-        if row_dict["flor_id"]:
-            item_data = {
-                "id": row_dict["item_id"],
-                "tipo": "flor",
-                "producto_id": row_dict["flor_id"],
-                "nombre": row_dict["flor_nombre"],
-                "precio": float(row_dict["flor_precio"]) if row_dict["flor_precio"] else 0.0,
-                "imagen": row_dict["flor_imagen"],
-                "cantidad": row_dict["cantidad"]
-            }
-        elif row_dict["accesorio_id"]:
-            item_data = {
-                "id": row_dict["item_id"],
-                "tipo": "accesorio",
-                "producto_id": row_dict["accesorio_id"],
-                "nombre": row_dict["accesorio_nombre"],
-                "precio": float(row_dict["accesorio_precio"]) if row_dict["accesorio_precio"] else 0.0,
-                "imagen": row_dict["accesorio_imagen"],
-                "cantidad": row_dict["cantidad"]
-            }
-        else:
-            continue
+        if not result_cart:
+            query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING *")
+            result_cart = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
+            db.commit()
             
-        items_formateados.append(item_data)
+        carrito_id = result_cart[0]
 
-    return {
-        "carrito_id": carrito_id,
-        "items": items_formateados
-    }
+        # 2. Obtener los items del carrito con la info (Join con flores y accesorios)
+        query_items = text("""
+            SELECT 
+                ci.id as item_id, 
+                ci.cantidad,
+                f.id as flor_id, f.nombre as flor_nombre, f.precio as flor_precio, f.imagen_url as flor_imagen,
+                a.id as accesorio_id, a.nombre as accesorio_nombre, a.precio as accesorio_precio, a.imagen_data as accesorio_imagen
+            FROM carrito_items ci
+            LEFT JOIN flores f ON ci.flor_id = f.id
+            LEFT JOIN accesorios a ON ci.accesorio_id = a.id
+            WHERE ci.carrito_id = :carrito_id
+            ORDER BY ci.added_at ASC
+        """)
+        result_items = db.execute(query_items, {"carrito_id": carrito_id})
+        keys = result_items.keys()
+        
+        items_formateados = []
+        for row in result_items:
+            row_dict = dict(zip(keys, row))
+            
+            # Determine si es flor o accesorio
+            if row_dict["flor_id"]:
+                item_data = {
+                    "id": row_dict["item_id"],
+                    "tipo": "flor",
+                    "producto_id": row_dict["flor_id"],
+                    "nombre": row_dict["flor_nombre"],
+                    "precio": float(row_dict["flor_precio"]) if row_dict["flor_precio"] else 0.0,
+                    "imagen": row_dict["flor_imagen"],
+                    "cantidad": row_dict["cantidad"]
+                }
+            elif row_dict["accesorio_id"]:
+                item_data = {
+                    "id": row_dict["item_id"],
+                    "tipo": "accesorio",
+                    "producto_id": row_dict["accesorio_id"],
+                    "nombre": row_dict["accesorio_nombre"],
+                    "precio": float(row_dict["accesorio_precio"]) if row_dict["accesorio_precio"] else 0.0,
+                    "imagen": row_dict["accesorio_imagen"],
+                    "cantidad": row_dict["cantidad"]
+                }
+            else:
+                continue
+                
+            items_formateados.append(item_data)
+
+        return {
+            "carrito_id": carrito_id,
+            "items": items_formateados
+        }
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=400, detail=f"Backend Error: {str(e)} | Type: {type(e).__name__} | Trace: {tb[-200:]}")
 
 @app.post("/api/user/carrito/items")
 async def add_item_to_cart(item: CartItemCreate, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
