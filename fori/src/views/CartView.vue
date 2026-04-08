@@ -170,7 +170,17 @@ const fetchCart = async () => {
       }
     });
 
-    if (!res.ok) throw new Error('Error al cargar el carrito');
+    if (!res.ok) {
+      let errTxt = "";
+      try {
+        const errorData = await res.json();
+        errTxt = errorData.detail || JSON.stringify(errorData);
+      } catch(e) {
+        errTxt = `HTTP ${res.status}`;
+      }
+      alert(`Error crítico en Carrito: ${errTxt}`);
+      throw new Error('Error al cargar el carrito');
+    }
     const data = await res.json();
     cartId.value = data.carrito_id;
     // Agregamos un flag 'updating' local para manejar estados de carga por botón
