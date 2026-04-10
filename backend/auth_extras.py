@@ -151,6 +151,17 @@ async def verify_mfa(req: MFAVerifyRequest, response: Response, account: dict = 
     access_token = create_access_token(data={"sub": sub_val, "type": acc_type, "role": account.get("role")})
     refresh_token, jti, expires_at = create_refresh_token(db_account.id, acc_type)
 
+    # Auto-cerrar sesiones antiguas si se alcanza el límite
+    active_sessions = db.query(SessionDB).filter(
+        SessionDB.account_id == db_account.id,
+        SessionDB.account_type == acc_type,
+        SessionDB.is_revoked == False
+    ).order_by(SessionDB.created_at).all()
+    
+    if len(active_sessions) >= 3:
+        for s in active_sessions[:-2]:
+            s.is_revoked = True
+
     db_session = SessionDB(account_id=db_account.id, account_type=acc_type, refresh_token_jti=jti, expires_at=expires_at)
     db.add(db_session)
     db.commit()

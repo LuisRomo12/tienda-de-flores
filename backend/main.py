@@ -535,9 +535,12 @@ async def login_admin(request: Request, response: Response, admin: AdminLogin, d
         SessionDB.account_id == db_admin.id,
         SessionDB.account_type == "admin",
         SessionDB.is_revoked == False
-    ).all()
+    ).order_by(SessionDB.created_at).all()
     if len(active_sessions) >= 3:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Límite de sesiones activas alcanzado (Máx 3). Cierra sesiones en otros dispositivos antes de continuar.")
+        # Auto-cerrar las sesiones más antiguas, dejando solo 2 activas antes de registrar la nueva
+        for s in active_sessions[:-2]:
+            s.is_revoked = True
+        db.commit()
 
     user_agent = request.headers.get("user-agent")
     ip_address = request.client.host if request.client else None
@@ -577,9 +580,12 @@ async def login_user(request: Request, response: Response, user: UserLogin, db: 
         SessionDB.account_id == db_user.id,
         SessionDB.account_type == "user",
         SessionDB.is_revoked == False
-    ).all()
+    ).order_by(SessionDB.created_at).all()
     if len(active_sessions) >= 3:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Límite de sesiones activas alcanzado (Máx 3). Cierra sesiones en otros dispositivos antes de continuar.")
+        # Auto-cerrar las sesiones más antiguas, dejando solo 2 activas antes de registrar la nueva
+        for s in active_sessions[:-2]:
+            s.is_revoked = True
+        db.commit()
 
     user_agent = request.headers.get("user-agent")
     ip_address = request.client.host if request.client else None
