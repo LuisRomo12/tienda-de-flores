@@ -325,7 +325,11 @@ def force_migration(db: Session = Depends(get_db)):
         SELECT DATE(fecha_pedido) as dia, count(*) as cantidad_pedidos, SUM(total) as ingresos 
         FROM pedidos 
         GROUP BY DATE(fecha_pedido);
-        """
+        """,
+        # Migración para asegurar columnas de accesorios en producción
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0;",
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS sku VARCHAR(50);",
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS descripcion TEXT;",
     ]
     results = {}
     for q in mig_queries:
