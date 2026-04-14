@@ -240,6 +240,28 @@ class PasswordRecoveryDB(Base):
     used = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+# ── MIGRACIÓN TEMPORAL DE PRODUCCIÓN ─────────────────────────────────────────
+# Agrega columnas faltantes en la tabla 'accesorios' (precio, descripcion, sku)
+# Seguro de re-ejecutar: usa IF NOT EXISTS / idempotente
+# TODO: Eliminar este bloque después de confirmar un deploy exitoso en Render
+try:
+    import sys, os
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _script = os.path.join(_dir, "migrate_accesorios_precio.py")
+    if os.path.exists(_script):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, _script],
+            capture_output=True, text=True, timeout=30
+        )
+        print("[STARTUP MIGRATION] accesorios_precio:")
+        print(result.stdout)
+        if result.returncode != 0:
+            print("[STARTUP MIGRATION] WARN:", result.stderr)
+except Exception as _me:
+    print(f"[STARTUP MIGRATION] Error (no critico): {_me}")
+# ── FIN MIGRACIÓN TEMPORAL ────────────────────────────────────────────────────
+
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
 
