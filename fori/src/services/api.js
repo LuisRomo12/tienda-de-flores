@@ -1,35 +1,59 @@
 // src/services/api.js
-const cache = new Map();
-let controller = null;
+// Usa apiClient (axios con interceptor JWT + auto-refresh) en lugar de fetch() nativo
+import apiClient from '../api/axios.js'
 
-export const fetchData = async (endpoint) => {
-  // 1. Implementar Cancelación (AbortController) [cite: 47]
-  if (controller) {
-    controller.abort(); 
-  }
-  controller = new AbortController();
-  const { signal } = controller;
+const cache = new Map()
+// Mapa de AbortControllers activos por endpoint
+const controllers = new Map()
 
-  // 2. Implementar Caché manual en memoria [cite: 48]
-  if (cache.has(endpoint)) {
-    console.log("Cargando desde caché:", endpoint);
-    return cache.get(endpoint);
+/**
+ * Realiza un GET autenticado al endpoint indicado.
+ * - Cancela peticiones duplicadas en vuelo (AbortController)
+ * - Cachea la respuesta en memoria para evitar llamadas repetidas
+ * - El token JWT se inyecta automáticamente via el interceptor de apiClient
+ *
+ * @param {string} endpoint  Ruta relativa, ej: '/flores' → GET /api/flores
+ * @param {boolean} [useCache=true]  Pasar false para forzar recarga
+ */
+export const fetchData = async (endpoint, useCache = true) => {
+  // 1. Caché manual en memoria
+  if (useCache && cache.has(endpoint)) {
+    console.log('[API] Cargando desde caché:', endpoint)
+    return cache.get(endpoint)
   }
+
+  // 2. Cancelar petición anterior al mismo endpoint si sigue activa
+  if (controllers.has(endpoint)) {
+    controllers.get(endpoint).abort()
+  }
+  const controller = new AbortController()
+  controllers.set(endpoint, controller)
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://tienda-de-flores.onrender.com')}/api${endpoint}`, { signal });
-    if (!response.ok) throw new Error("Error en la carga de datos");
-    
-    const data = await response.ok ? await response.json() : null;
-    
-    // Guardar en caché para evitar llamadas repetidas [cite: 49]
-    cache.set(endpoint, data);
-    return data;
+    // 3. Petición autenticada — el interceptor de axios.js inyecta
+    //    el Authorization: Bearer <token> y gestiona el refresh automático
+    const { data } = await apiClient.get(`/api${endpoint}`, {
+      signal: controller.signal
+    })
+
+    cache.set(endpoint, data)
+    return data
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log('Petición cancelada');
+    if (error.name === 'CanceledError' || error.name === 'AbortError') {
+      console.log('[API] Petición cancelada:', endpoint)
     } else {
-      throw error;
+      // Re-lanzar para que el componente pueda manejar el error
+      throw error
     }
+  } finally {
+    controllers.delete(endpoint)
   }
-};
+}
+
+/**
+ * Invalida una entrada del caché (útil al crear/editar recursos).
+ * @param {string} endpoint
+ */
+export const invalidateCache = (endpoint) => {
+  cache.delete(endpoint)
+}

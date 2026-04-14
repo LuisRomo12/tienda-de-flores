@@ -5,6 +5,7 @@ import i18n from './i18n'
 import vScroll from './js/animations.js'
 import vParallax from './js/dom.js'
 import vMagnetic from './js/app.js'
+import vRole from './directives/v-role.js'
 import './css/animations.css'
 import './css/base.css'
 
@@ -15,4 +16,5 @@ app.use(i18n)
 app.directive('scroll', vScroll)
 app.directive('parallax', vParallax)
 app.directive('magnetic', vMagnetic)
+app.directive('role', vRole)   // ← Directiva RBAC: <button v-role="'admin'">...
 app.mount('#app')

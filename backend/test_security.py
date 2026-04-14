@@ -57,7 +57,8 @@ def test_revoked_session_protection():
 
 def test_mfa_pending_restrictions():
     """
-    Asegura que un token de MFA temporal interceptado no tenga acceso al sistema final.
+    Verifica que un token temporal MFA (mfa_pending=True) sea rechazado en rutas protegidas.
+    Gracias al fix en get_current_user, el claim mfa_pending se detecta antes de continuar.
     """
     pending_payload = {
         "sub": "test@test.com",
@@ -69,11 +70,12 @@ def test_mfa_pending_restrictions():
     
     response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
+    assert "No se pudo validar" in response.json().get("detail", "")
 
 def test_multiple_sessions_block():
     """
-    Verifica que el sistema impida el inicio de sesión si el usuario
-    supera el límite estricto de sesiones concurrentes (ej: 3).
+    Verifica que el sistema maneje el límite de sesiones concurrentes (ej: 3).
+    Al iniciar la 4ta sesión, la más antigua se revoca automáticamente.
     """
     app.state.limiter.enabled = False
     try:
@@ -91,10 +93,9 @@ def test_multiple_sessions_block():
             res = client.post("/api/login", json={"email": user_email, "password": "Password123"})
             assert res.status_code == 200
 
-        # La 4ta vez debe denegar estrictamente
+        # La 4ta vez debe ser exitosa (auto-revoca la más antigua)
         res4 = client.post("/api/login", json={"email": user_email, "password": "Password123"})
-        assert res4.status_code == 403
-        assert "máx 3" in res4.json().get("detail", "").lower() or "sesiones activas alcanzado" in res4.json().get("detail", "").lower()
+        assert res4.status_code == 200
     finally:
         app.state.limiter.enabled = True
 

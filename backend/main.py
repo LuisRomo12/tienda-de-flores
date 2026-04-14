@@ -121,6 +121,10 @@ role_permissions = Table(
     Column('permission_id', Integer, ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
 )
 
+# Jerarquía de roles RBAC
+# superadmin > admin > editor > user
+ROLES_JERARQUIA = ["user", "editor", "admin", "superadmin"]
+
 # Modelo de la Tabla (Esto creará la tabla 'users')
 class UserDB(Base):
     __tablename__ = "users"
@@ -135,6 +139,9 @@ class UserDB(Base):
     respuesta_secreta_hash = Column(String(255), nullable=True)
     recovery_attempts = Column(Integer, default=0)
     recovery_locked_until = Column(TIMESTAMP, nullable=True)
+    # Campo RBAC: rol simple para acceso rápido sin JOIN
+    # Valores: 'user' | 'editor' | 'admin' | 'superadmin'
+    role = Column(String(20), default='user', nullable=False, server_default='user')
     roles = relationship("RoleDB", secondary=user_roles)
 
 class AdminDB(Base):
@@ -240,7 +247,9 @@ def get_db():
         db.close()
 
 @app.get("/api/admin/force-migration")
-def force_migration(db: Session = Depends(get_db)):
+def force_migration(db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
+    if current_admin.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores con rol 'admin' pueden ejecutar migraciones")
     mig_queries = [
         """
         CREATE TABLE IF NOT EXISTS categorias (
@@ -446,6 +455,9 @@ async def get_current_user(token: str = Depends(oauth2_user_scheme), db: Session
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # Fix 3: Rechazar tokens temporales MFA que no deben acceder a rutas protegidas
+        if payload.get("mfa_pending"):
+            raise credentials_exception
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -471,8 +483,51 @@ async def get_current_user(token: str = Depends(oauth2_user_scheme), db: Session
         
     return user
 
+
+def check_role(roles_permitidos: list[str]):
+    """
+    Factory de dependency RBAC para FastAPI.
+    Recibe una lista de roles permitidos y retorna una dependency
+    que valida que el usuario autenticado tenga uno de esos roles.
+
+    Jerarquía: superadmin > admin > editor > user
+    Ejemplo de uso:
+        @app.delete("/recurso/{id}")
+        async def eliminar(current_user = Depends(check_role(["admin", "superadmin"]))):
+            ...
+    """
+    def dependency(current_user: UserDB = Depends(get_current_user)):
+        if current_user.role not in roles_permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acceso denegado. Tu rol '{current_user.role}' no tiene permiso. "
+                       f"Se requiere uno de: {roles_permitidos}"
+            )
+        return current_user
+    return dependency
+
+
+def check_min_role(min_role: str):
+    """
+    Alternativa jerárquica: permite acceso si el rol del usuario
+    es igual o superior al rol mínimo requerido.
+    Ejemplo: check_min_role('editor') permite a editor, admin y superadmin.
+    """
+    def dependency(current_user: UserDB = Depends(get_current_user)):
+        user_level = ROLES_JERARQUIA.index(current_user.role) if current_user.role in ROLES_JERARQUIA else -1
+        min_level = ROLES_JERARQUIA.index(min_role) if min_role in ROLES_JERARQUIA else 999
+        if user_level < min_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acceso denegado. Se requiere al menos el rol '{min_role}'."
+            )
+        return current_user
+    return dependency
+
+
 @app.post("/api/register", status_code=status.HTTP_201_CREATED)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+async def register_user(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     # 1. Validar Captcha
     if user.captcha_answer != 8:
         raise HTTPException(status_code=400, detail="CAPTCHA incorrecto")
@@ -576,7 +631,9 @@ async def login_user(request: Request, response: Response, user: UserLogin, db: 
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": db_user.email, "type": "user"}, expires_delta=access_token_expires
+        # Incluir 'role' en el JWT para que el frontend pueda leerlo sin extra requests
+        data={"sub": db_user.email, "type": "user", "role": db_user.role},
+        expires_delta=access_token_expires
     )
     refresh_token, jti, expires_at = create_refresh_token(db_user.id, "user")
 
@@ -623,7 +680,8 @@ async def refresh_token(request: Request, response: Response, db: Session = Depe
         access_token = create_access_token(data={"sub": admin.username, "role": "web_admin", "type": "admin"})
     else:
         user = db.query(UserDB).filter(UserDB.id == account_id).first()
-        access_token = create_access_token(data={"sub": user.email, "type": "user"})
+        # Refresh también incluye el rol actualizado desde DB
+        access_token = create_access_token(data={"sub": user.email, "type": "user", "role": user.role})
         
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -800,6 +858,12 @@ async def create_flor(flor: dict, db: Session = Depends(get_db), current_admin: 
     nueva_flor = dict(zip(keys, result.fetchone()))
     return nueva_flor
 
+# Whitelist de columnas permitidas para PATCH flores (previene SQL Injection en nombres de columna)
+COLUMNAS_FLORES_PERMITIDAS = {
+    "nombre", "categoria_id", "precio", "stock", "imagen_url",
+    "imagenes_extra", "descripcion_detallada", "sku", "tags", "recomendaciones"
+}
+
 @app.patch("/api/admin/flores/{flor_id}")
 async def update_flor(flor_id: int, flor: dict, db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
     # Construir la query dinámicamente según los campos que nos manden
@@ -818,7 +882,8 @@ async def update_flor(flor_id: int, flor: dict, db: Session = Depends(get_db), c
         flor["imagenes_extra"] = json.dumps(compressed_extra)
     
     for key, value in flor.items():
-        if key != 'id':
+        # Fix SQLi: validar el nombre de columna contra la whitelist antes de incluirlo en la query
+        if key != 'id' and key in COLUMNAS_FLORES_PERMITIDAS:
             set_clauses.append(f"{key} = :{key}")
             params[key] = value
             
@@ -883,6 +948,11 @@ async def create_accesorio(acc: dict, db: Session = Depends(get_db), current_adm
     nuevo_acc = dict(zip(keys, result.fetchone()))
     return nuevo_acc
 
+# Whitelist de columnas permitidas para PATCH accesorios (previene SQL Injection en nombres de columna)
+COLUMNAS_ACCESORIOS_PERMITIDAS = {
+    "nombre", "categoria_id", "precio", "stock", "imagen_data", "descripcion", "sku"
+}
+
 @app.patch("/api/admin/accesorios/{accesorio_id}")
 async def update_accesorio(accesorio_id: int, acc: dict, db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
     set_clauses = []
@@ -892,7 +962,8 @@ async def update_accesorio(accesorio_id: int, acc: dict, db: Session = Depends(g
         acc["imagen_data"] = compress_image_b64(acc["imagen_data"])
     
     for key, value in acc.items():
-        if key != 'id':
+        # Fix SQLi: validar el nombre de columna contra la whitelist antes de incluirlo en la query
+        if key != 'id' and key in COLUMNAS_ACCESORIOS_PERMITIDAS:
             set_clauses.append(f"{key} = :{key}")
             params[key] = value
             
