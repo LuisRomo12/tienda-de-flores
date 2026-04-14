@@ -183,8 +183,8 @@ class FlorDB(Base):
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(255), nullable=False)
-    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
-    precio = Column(String)  # NUMERIC en DB
+    categoria_id = Column(Integer, nullable=True)   # FK manejada por PostgreSQL, no ORM
+    precio = Column(String)
     stock = Column(Integer, default=0)
     imagen_url = Column(Text, nullable=True)
     imagenes_extra = Column(Text, nullable=True)
@@ -198,8 +198,8 @@ class AccesorioDB(Base):
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(255), nullable=False)
-    categoria_id = Column(Integer, ForeignKey("accesorios_categorias.id"), nullable=True)
-    precio = Column(String, nullable=True)  # NUMERIC en DB; nullable para compatibilidad con filas antiguas
+    categoria_id = Column(Integer, nullable=True)   # FK manejada por PostgreSQL, no ORM
+    precio = Column(String, nullable=True)
     stock = Column(Integer, default=0)
     imagen_data = Column(Text, nullable=True)
     descripcion = Column(Text, nullable=True)
