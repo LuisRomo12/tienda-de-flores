@@ -176,6 +176,35 @@ class DireccionDB(Base):
     es_principal = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+# Modelos ORM para tablas gestionadas por SQL manual
+# extend_existing=True evita conflicto con create_all si la tabla ya existe
+class FlorDB(Base):
+    __tablename__ = "flores"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
+    precio = Column(String)  # NUMERIC en DB
+    stock = Column(Integer, default=0)
+    imagen_url = Column(Text, nullable=True)
+    imagenes_extra = Column(Text, nullable=True)
+    descripcion_detallada = Column(Text, nullable=True)
+    sku = Column(String(50), nullable=True)
+    tags = Column(String(200), nullable=True)
+    recomendaciones = Column(Text, nullable=True)
+
+class AccesorioDB(Base):
+    __tablename__ = "accesorios"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("accesorios_categorias.id"), nullable=True)
+    precio = Column(String, nullable=True)  # NUMERIC en DB; nullable para compatibilidad con filas antiguas
+    stock = Column(Integer, default=0)
+    imagen_data = Column(Text, nullable=True)
+    descripcion = Column(Text, nullable=True)
+    sku = Column(String(50), nullable=True)
+
 class RoleDB(Base):
     __tablename__ = 'roles'
     id = Column(Integer, primary_key=True, index=True)
