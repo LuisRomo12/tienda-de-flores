@@ -243,6 +243,31 @@ class PasswordRecoveryDB(Base):
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
 
+# ── Migraciones de columnas (idempotentes — seguras en cada arranque) ─────────
+# Garantiza que columnas añadidas al modelo ORM también existan en producción.
+# ALTER TABLE ... ADD COLUMN IF NOT EXISTS nunca falla si la columna ya existe.
+_STARTUP_MIGRATIONS = [
+    # RBAC: campo role en usuarios (añadido en esta versión)
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';",
+    # Accesorios: columnas que faltaban en producción
+    "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS precio NUMERIC(10,2) NOT NULL DEFAULT 0;",
+    "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS descripcion TEXT;",
+    "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS sku VARCHAR(50);",
+    # Sessions: columnas de gestión de sesiones
+    "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT;",
+    "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);",
+]
+with engine.connect() as _c:
+    for _sql in _STARTUP_MIGRATIONS:
+        try:
+            _c.execute(text(_sql))
+            _c.commit()
+        except Exception as _e:
+            _c.rollback()
+            print(f"[MIGRATION] Aviso (no critico): {_e}")
+# ── Fin migraciones de arranque ───────────────────────────────────────────────
+
+
 
 
 
