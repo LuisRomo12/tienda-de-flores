@@ -240,30 +240,9 @@ class PasswordRecoveryDB(Base):
     used = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-# ── MIGRACIÓN TEMPORAL DE PRODUCCIÓN ─────────────────────────────────────────
-# Agrega columnas faltantes en la tabla 'accesorios' (precio, descripcion, sku)
-# Seguro de re-ejecutar: usa IF NOT EXISTS / idempotente
-# TODO: Eliminar este bloque después de confirmar un deploy exitoso en Render
-try:
-    import sys, os
-    _dir = os.path.dirname(os.path.abspath(__file__))
-    _script = os.path.join(_dir, "migrate_accesorios_precio.py")
-    if os.path.exists(_script):
-        import subprocess
-        result = subprocess.run(
-            [sys.executable, _script],
-            capture_output=True, text=True, timeout=30
-        )
-        print("[STARTUP MIGRATION] accesorios_precio:")
-        print(result.stdout)
-        if result.returncode != 0:
-            print("[STARTUP MIGRATION] WARN:", result.stderr)
-except Exception as _me:
-    print(f"[STARTUP MIGRATION] Error (no critico): {_me}")
-# ── FIN MIGRACIÓN TEMPORAL ────────────────────────────────────────────────────
-
 # Crear tablas automáticamente al iniciar
 Base.metadata.create_all(bind=engine)
+
 
 
 
@@ -297,110 +276,7 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/api/admin/force-migration")
-def force_migration(db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
-    if current_admin.rol != "admin":
-        raise HTTPException(status_code=403, detail="Solo administradores con rol 'admin' pueden ejecutar migraciones")
-    mig_queries = [
-        """
-        CREATE TABLE IF NOT EXISTS categorias (
-            id SERIAL PRIMARY KEY,
-            nombre VARCHAR(255) NOT NULL
-        );
-        """,
-        """
-        CREATE TABLE IF NOT EXISTS flores (
-            id SERIAL PRIMARY KEY,
-            nombre VARCHAR(255) NOT NULL,
-            categoria_id INTEGER REFERENCES categorias(id),
-            precio NUMERIC(10, 2) NOT NULL,
-            stock INTEGER DEFAULT 0,
-            imagen_url TEXT,
-            imagenes_extra TEXT,
-            descripcion_detallada TEXT,
-            sku VARCHAR(50),
-            tags VARCHAR(200),
-            recomendaciones TEXT
-        );
-        """,
-        """
-        CREATE TABLE IF NOT EXISTS accesorios_categorias (
-            id SERIAL PRIMARY KEY,
-            nombre VARCHAR(255) NOT NULL,
-            icono VARCHAR(50)
-        );
-        """,
-        """
-        CREATE TABLE IF NOT EXISTS accesorios (
-            id SERIAL PRIMARY KEY,
-            nombre VARCHAR(255) NOT NULL,
-            categoria_id INTEGER REFERENCES accesorios_categorias(id),
-            precio NUMERIC(10, 2) NOT NULL,
-            stock INTEGER DEFAULT 0,
-            imagen_data TEXT,
-            descripcion TEXT,
-            sku VARCHAR(50)
-        );
-        """,
-        "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
-        "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
-        "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
-        "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;",
-        "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
-        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;",
-        """
-        CREATE TABLE IF NOT EXISTS carrito (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """,
-        """
-        CREATE TABLE IF NOT EXISTS carrito_items (
-            id SERIAL PRIMARY KEY,
-            carrito_id INTEGER REFERENCES carrito(id) ON DELETE CASCADE,
-            flor_id INTEGER REFERENCES flores(id) ON DELETE CASCADE NULL,
-            accesorio_id INTEGER REFERENCES accesorios(id) ON DELETE CASCADE NULL,
-            cantidad INTEGER NOT NULL DEFAULT 1,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """,
-        """
-        CREATE TABLE IF NOT EXISTS pedidos (
-            id SERIAL PRIMARY KEY,
-            fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            estado VARCHAR(50) DEFAULT 'pendiente',
-            total NUMERIC(10, 2) DEFAULT 0,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
-        );
-        """,
-        """
-        CREATE OR REPLACE VIEW vista_pedidos AS 
-        SELECT p.*, u.email as usuario_email 
-        FROM pedidos p 
-        LEFT JOIN users u ON p.user_id = u.id;
-        """,
-        """
-        CREATE OR REPLACE VIEW resumen_ventas_diario AS 
-        SELECT DATE(fecha_pedido) as dia, count(*) as cantidad_pedidos, SUM(total) as ingresos 
-        FROM pedidos 
-        GROUP BY DATE(fecha_pedido);
-        """,
-        # Migración para asegurar columnas de accesorios en producción
-        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0;",
-        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS sku VARCHAR(50);",
-        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS descripcion TEXT;",
-    ]
-    results = {}
-    for q in mig_queries:
-        try:
-            db.execute(text(q))
-            db.commit()
-            results[q] = "Exito"
-        except Exception as e:
-            db.rollback()
-            results[q] = f"Error: {e}"
-    return results
+# force_migration se define más abajo, después de get_current_admin (línea ~498)
 
 # --- MODELOS DE VALIDACIÓN (Pydantic) ---
 class UserCreate(BaseModel):
@@ -495,6 +371,113 @@ async def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = D
     if admin is None or not admin.activo:
         raise credentials_exception
     return admin
+
+# ── Endpoint force-migration (requiere get_current_admin, definido arriba) ───
+@app.get("/api/admin/force-migration")
+def force_migration(db: Session = Depends(get_db), current_admin: AdminDB = Depends(get_current_admin)):
+    if current_admin.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores con rol 'admin' pueden ejecutar migraciones")
+    mig_queries = [
+        """
+        CREATE TABLE IF NOT EXISTS categorias (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS flores (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            categoria_id INTEGER REFERENCES categorias(id),
+            precio NUMERIC(10, 2) NOT NULL,
+            stock INTEGER DEFAULT 0,
+            imagen_url TEXT,
+            imagenes_extra TEXT,
+            descripcion_detallada TEXT,
+            sku VARCHAR(50),
+            tags VARCHAR(200),
+            recomendaciones TEXT
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS accesorios_categorias (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            icono VARCHAR(50)
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS accesorios (
+            id SERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            categoria_id INTEGER REFERENCES accesorios_categorias(id),
+            precio NUMERIC(10, 2) NOT NULL,
+            stock INTEGER DEFAULT 0,
+            imagen_data TEXT,
+            descripcion TEXT,
+            sku VARCHAR(50)
+        );
+        """,
+        "ALTER TABLE flores ADD COLUMN IF NOT EXISTS descripcion_detallada TEXT;",
+        "ALTER TABLE flores ADD COLUMN IF NOT EXISTS sku VARCHAR(50);",
+        "ALTER TABLE flores ADD COLUMN IF NOT EXISTS tags VARCHAR(200);",
+        "ALTER TABLE flores ADD COLUMN IF NOT EXISTS recomendaciones TEXT;",
+        "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
+        "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;",
+        """
+        CREATE TABLE IF NOT EXISTS carrito (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS carrito_items (
+            id SERIAL PRIMARY KEY,
+            carrito_id INTEGER REFERENCES carrito(id) ON DELETE CASCADE,
+            flor_id INTEGER REFERENCES flores(id) ON DELETE CASCADE NULL,
+            accesorio_id INTEGER REFERENCES accesorios(id) ON DELETE CASCADE NULL,
+            cantidad INTEGER NOT NULL DEFAULT 1,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS pedidos (
+            id SERIAL PRIMARY KEY,
+            fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            estado VARCHAR(50) DEFAULT 'pendiente',
+            total NUMERIC(10, 2) DEFAULT 0,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE OR REPLACE VIEW vista_pedidos AS
+        SELECT p.*, u.email as usuario_email
+        FROM pedidos p
+        LEFT JOIN users u ON p.user_id = u.id;
+        """,
+        """
+        CREATE OR REPLACE VIEW resumen_ventas_diario AS
+        SELECT DATE(fecha_pedido) as dia, count(*) as cantidad_pedidos, SUM(total) as ingresos
+        FROM pedidos
+        GROUP BY DATE(fecha_pedido);
+        """,
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0;",
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS sku VARCHAR(50);",
+        "ALTER TABLE accesorios ADD COLUMN IF NOT EXISTS descripcion TEXT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';",
+    ]
+    results = {}
+    for q in mig_queries:
+        try:
+            db.execute(text(q))
+            db.commit()
+            results[q] = "Exito"
+        except Exception as e:
+            db.rollback()
+            results[q] = f"Error: {e}"
+    return results
+
 
 oauth2_user_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
