@@ -86,14 +86,40 @@ const routes = [
 // Jerarquía de roles (debe coincidir con backend y useRole.js)
 const ROLES_JERARQUIA = ['user', 'editor', 'admin', 'superadmin']
 
-function decodeJWTRole(token) {
+/**
+ * Decodifica el payload del JWT sin verificar la firma.
+ * Retorna el objeto payload o null si el token es inválido.
+ */
+function decodeJWTPayload(token) {
   try {
     const payload = token.split('.')[1]
     const padded = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(
       payload.length + (4 - (payload.length % 4)) % 4, '='
     )
-    return JSON.parse(atob(padded))?.role || 'user'
+    return JSON.parse(atob(padded))
   } catch { return null }
+}
+
+/**
+ * Verifica si el token existe Y no ha expirado (usando el claim 'exp').
+ * Un token expirado en localStorage NO cuenta como sesión activa.
+ */
+function isTokenValid(token) {
+  if (!token) return false
+  const payload = decodeJWTPayload(token)
+  if (!payload) return false
+  // exp está en segundos desde epoch
+  if (payload.exp && payload.exp * 1000 < Date.now()) {
+    // Token expirado — limpiarlo del localStorage para no seguir bloqueando
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('token')
+    return false
+  }
+  return true
+}
+
+function decodeJWTRole(token) {
+  return decodeJWTPayload(token)?.role || null
 }
 
 // ── Rutas que requieren sesión activa ──────────────────────────────────────
@@ -119,33 +145,33 @@ const router = createRouter({
  *   { path: '/admin',     meta: { requiresAuth: true, roles: ['admin','superadmin'] }, ... }
  */
 router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem('access_token') || localStorage.getItem('token')
+  const rawToken = localStorage.getItem('access_token') || localStorage.getItem('token')
+  // isTokenValid también limpia el localStorage si el token está expirado
+  const sesionActiva = isTokenValid(rawToken)
 
   // ── 1. Ruta solo para usuarios NO autenticados (login, registro) ──────────
   const esSoloPublica = RUTAS_SOLO_PUBLICAS.some(r => to.path.startsWith(r))
-  if (esSoloPublica && token) {
+  if (esSoloPublica && sesionActiva) {
     return next({ path: '/perfil' })
   }
 
   // ── 2. ¿Requiere autenticación? ───────────────────────────────────────────
-  const esPrivadaLista  = RUTAS_PRIVADAS.some(r => to.path.startsWith(r))
-  const esPrivadaMeta   = to.meta?.requiresAuth === true
-  const necesitaAuth    = esPrivadaLista || esPrivadaMeta
+  const esPrivadaLista = RUTAS_PRIVADAS.some(r => to.path.startsWith(r))
+  const esPrivadaMeta  = to.meta?.requiresAuth === true
+  const necesitaAuth   = esPrivadaLista || esPrivadaMeta
 
-  if (necesitaAuth && !token) {
+  if (necesitaAuth && !sesionActiva) {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
 
   // ── 3. RBAC: verificar rol si la ruta lo requiere ─────────────────────────
-  if (token && (to.meta?.roles || to.meta?.minRole)) {
-    const userRole  = decodeJWTRole(token)
+  if (sesionActiva && (to.meta?.roles || to.meta?.minRole)) {
+    const userRole  = decodeJWTRole(rawToken)
     const userLevel = ROLES_JERARQUIA.indexOf(userRole)
 
     // 3a. Lista exacta de roles
-    if (to.meta.roles) {
-      if (!to.meta.roles.includes(userRole)) {
-        return next({ path: '/no-autorizado', query: { from: to.fullPath } })
-      }
+    if (to.meta.roles && !to.meta.roles.includes(userRole)) {
+      return next({ path: '/no-autorizado', query: { from: to.fullPath } })
     }
 
     // 3b. Rol mínimo jerárquico
