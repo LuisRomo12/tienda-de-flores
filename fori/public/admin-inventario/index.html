@@ -10,6 +10,11 @@
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
         rel="stylesheet">
     <script>
+        // Bloqueo de acceso por ruta directa. Si no tienen el pase de la Navbar, se les expulsa
+        if (sessionStorage.getItem('secret_admin_access') !== 'granted') {
+            window.location.replace('/');
+        }
+
         // Synchronize dark theme with the main app
         window.addEventListener('load', () => {
             const savedTheme = localStorage.getItem('theme');

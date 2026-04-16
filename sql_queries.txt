@@ -1,0 +1,72 @@
+57: to_encode.update({"exp": expire})
+113: Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+114: Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+119: Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+120: Column('permission_id', Integer, ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
+155: user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+245: CREATE TABLE IF NOT EXISTS categorias (
+251: CREATE TABLE IF NOT EXISTS flores (
+266: CREATE TABLE IF NOT EXISTS accesorios (
+275: "ALTER TABLE flores ADD COLUMN descripcion_detallada TEXT;",
+276: "ALTER TABLE flores ADD COLUMN sku VARCHAR(50);",
+277: "ALTER TABLE flores ADD COLUMN tags VARCHAR(200);",
+278: "ALTER TABLE flores ADD COLUMN recomendaciones TEXT;",
+279: "ALTER TABLE flores ALTER COLUMN imagen_url TYPE TEXT;",
+280: "ALTER TABLE flores ALTER COLUMN imagenes_extra TYPE TEXT;",
+282: CREATE TABLE IF NOT EXISTS carrito (
+284: user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+289: CREATE TABLE IF NOT EXISTS carrito_items (
+291: carrito_id INTEGER REFERENCES carrito(id) ON DELETE CASCADE,
+292: flor_id INTEGER REFERENCES flores(id) ON DELETE CASCADE NULL,
+293: accesorio_id INTEGER REFERENCES accesorios(id) ON DELETE CASCADE NULL,
+376: class CartItemUpdate(BaseModel):
+621: result = db.execute(text("SELECT * FROM categorias ORDER BY id"))
+628: result = db.execute(text("SELECT * FROM accesorios_categorias ORDER BY id"))
+635: result = db.execute(text("SELECT * FROM accesorios ORDER BY id DESC"))
+642: result = db.execute(text("SELECT * FROM accesorios WHERE id = :accesorio_id"), {"accesorio_id": accesorio_id})
+651: result = db.execute(text("SELECT * FROM flores ORDER BY id DESC"))
+658: result = db.execute(text("SELECT * FROM flores WHERE id = :flor_id"), {"flor_id": flor_id})
+673: query = "SELECT * FROM flores WHERE precio <= :max_price"
+682: cat_result = db.execute(text("SELECT id FROM categorias WHERE nombre = :category"), {"category": category})
+700: cat_res = db.execute(text("SELECT nombre FROM categorias WHERE id = :cid"), {"cid": flor["categoria_id"]})
+714: result = db.execute(text("SELECT id, nombre FROM categorias"))
+720: result = db.execute(text("SELECT * FROM flores ORDER BY id DESC"))
+730: # Ejecuta un RAW insert
+741: INSERT INTO flores (nombre, categoria_id, precio, stock, imagen_url, imagenes_extra, descripcion_detallada, sku, tags, recomendaciones)
+788: query = text(f"UPDATE flores SET {set_clause_str} WHERE id = :flor_id RETURNING *")
+800: @app.delete("/api/admin/flores/{flor_id}")
+807: db.delete(db_flor)
+813: result = db.execute(text("SELECT id, nombre, icono FROM accesorios_categorias"))
+819: result = db.execute(text("SELECT * FROM accesorios ORDER BY id DESC"))
+827: INSERT INTO accesorios (nombre, categoria_id, precio, stock, imagen_data, descripcion, sku)
+862: query = text(f"UPDATE accesorios SET {set_clause_str} WHERE id = :accesorio_id RETURNING *")
+874: @app.delete("/api/admin/accesorios/{accesorio_id}")
+881: db.delete(db_accesorio)
+887: query_str = "SELECT * FROM vista_pedidos ORDER BY fecha_pedido DESC"
+909: query = text("SELECT * FROM vista_pedidos WHERE estado IN ('pendiente', 'en_camino') ORDER BY fecha_pedido ASC")
+927: query_str = "SELECT * FROM resumen_ventas_diario ORDER BY dia DESC"
+1017: @app.delete("/api/users/me/sessions/{session_id}")
+1048: db.query(DireccionDB).filter(DireccionDB.user_id == current_user.id).update({"es_principal": False})
+1066: db.query(DireccionDB).filter(DireccionDB.user_id == current_user.id).update({"es_principal": False})
+1071: @app.delete("/api/user/direcciones/{dir_id}")
+1076: db.delete(db_dir)
+1087: query_cart = text("SELECT * FROM carrito WHERE user_id = :user_id")
+1091: query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING *")
+1092: result_cart = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
+1099: SELECT
+1155: query_cart = text("SELECT id FROM carrito WHERE user_id = :user_id")
+1159: query_insert = text("INSERT INTO carrito (user_id) VALUES (:user_id) RETURNING id")
+1160: cart_row = db.execute(query_insert, {"user_id": current_user.id}).fetchone()
+1167: query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND flor_id = :flor_id")
+1170: query_check = text("SELECT id, cantidad FROM carrito_items WHERE carrito_id = :carrito_id AND accesorio_id = :accesorio_id")
+1178: query_update = text("UPDATE carrito_items SET cantidad = :cantidad WHERE id = :id RETURNING *")
+1179: db.execute(query_update, {"cantidad": nueva_cantidad, "id": existing_item[0]})
+1185: INSERT INTO carrito_items (carrito_id, flor_id, accesorio_id, cantidad)
+1199: async def update_cart_item(item_id: int, payload: CartItemUpdate, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+1202: SELECT ci.id FROM carrito_items ci
+1209: query_update = text("UPDATE carrito_items SET cantidad = :cantidad WHERE id = :item_id RETURNING *")
+1210: db.execute(query_update, {"cantidad": payload.cantidad, "item_id": item_id})
+1214: @app.delete("/api/user/carrito/items/{item_id}")
+1217: SELECT ci.id FROM carrito_items ci
+1224: query_delete = text("DELETE FROM carrito_items WHERE id = :item_id")
+1225: db.execute(query_delete, {"item_id": item_id})

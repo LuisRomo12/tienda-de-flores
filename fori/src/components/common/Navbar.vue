@@ -149,6 +149,8 @@ export default {
         // Cambia 'admin123' por la contraseña que quieras configurar para entrar
         if (pass === 'admin123') {
             alert('✅ ¡Acceso Autorizado! \n\n Bienvenido al panel de control.');
+            // Guardamos el "pase de abordar" en la sesión
+            sessionStorage.setItem('secret_admin_access', 'granted');
             // Usamos una ruta "limpia" (clean URL) sin el index.html para que se vea profesional
             window.location.href = '/admin-inventario/'; 
         } else if (pass !== null) {
