@@ -98,7 +98,7 @@ export default {
   },
   methods: {
     checkLoginStatus() {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || localStorage.getItem('access_token');
       this.isLoggedIn = !!token;
     },
     logout() {
