@@ -103,9 +103,10 @@ export default {
     },
     logout() {
       localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       this.isLoggedIn = false;
-      this.$router.push('/login');
+      this.$router.push('/registro');
     },
     toggleTheme() {
       this.isDarkMode = !this.isDarkMode;
