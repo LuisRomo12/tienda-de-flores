@@ -142,47 +142,17 @@ export default {
       if (this.secretClicks === 7) {
         this.secretClicks = 0; // reset
         
-        if (!window.PublicKeyCredential) {
-          alert('Tu navegador no soporta seguridad nativa o requiere estar en HTTPS.');
-          return;
-        }
-
-        try {
-          // Generamos datos aleatorios para la petición WebAuthn
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          const userId = new Uint8Array(16);
-          window.crypto.getRandomValues(userId);
-
-          // Llamada a WebAuthn pidiendo el candado del Sistema Operativo
-          const cred = await navigator.credentials.create({
-            publicKey: {
-              challenge: challenge,
-              rp: { name: 'Sistema Central UTFlower', id: window.location.hostname },
-              user: { id: userId, name: 'admin_secreto', displayName: 'Acceso Restringido' },
-              pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-              authenticatorSelection: {
-                // "platform" obliga a usar Windows Hello, TouchID o PIN del dispositivo
-                authenticatorAttachment: 'platform',
-                userVerification: 'required'
-              },
-              timeout: 60000,
-              attestation: 'none'
-            }
-          });
-
-          if (cred) {
-            // ¡Exitoso! El usuario puso su PIN/huella correcta
-            alert('🔐 ¡Autenticación Biométrica/Local Exitosa! Procediendo al panel de Administrador...');
-            
-            // Asignar rol de admin de emergencia en pruebas (opcional) o simplemente redirigir 
-            // Si el proyecto usa un panel en /admin.html o una vista:
-            window.location.href = '/admin.html'; // Cambia esta URL si tu panel está en otro lado
-          }
-
-        } catch (error) {
-          console.warn('Acceso denegado o cancelado:', error);
-          alert('❌ Acceso Denegado. La contraseña u opción de seguridad fue cancelada.');
+        // Como Windows Hello no tiene el PIN habilitado para Passkeys en esta PC,
+        // usamos nuestro propio candado interno (un prompt nativo del navegador).
+        const pass = prompt('🤫 MODO ADMINISTRADOR DETECTADO\n\nPor favor, ingrese la Contraseña Maestra:');
+        
+        // Cambia 'admin123' por la contraseña que quieras configurar para entrar
+        if (pass === 'admin123') {
+            alert('✅ ¡Acceso Autorizado! \n\n Bienvenido al panel de control.');
+            // Redirige al panel (ajusta esta URL a donde esté tu panel verdaderamente)
+            window.location.href = '/admin.html'; 
+        } else if (pass !== null) {
+            alert('❌ Acceso Denegado. Contraseña incorrecta.');
         }
       }
     }
