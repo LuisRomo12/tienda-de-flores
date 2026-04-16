@@ -11,6 +11,9 @@
         </a>
       </div>
 
+      <!-- Botón Secreto para Admin -->
+      <button class="secret-admin-btn" @click="handleSecretAccess" title=""></button>
+
       <button 
         class="menu-toggle" 
         @click="isMobileMenuOpen = !isMobileMenuOpen"
@@ -79,7 +82,9 @@ export default {
       isMobileMenuOpen: false,
       activeSubmenu: null,
       isDarkMode: false,
-      isLoggedIn: false
+      isLoggedIn: false,
+      secretClicks: 0,
+      secretClickTimer: null
     };
   },
   mounted() {
@@ -123,6 +128,63 @@ export default {
     },
     closeSubmenu() {
       this.activeSubmenu = null;
+    },
+    async handleSecretAccess() {
+      this.secretClicks++;
+      clearTimeout(this.secretClickTimer);
+      
+      // Si no hace clic de nuevo en 2 segundos, se reinicia el contador
+      this.secretClickTimer = setTimeout(() => {
+        this.secretClicks = 0;
+      }, 2000);
+
+      // Si llegó a 7 clics rápidos:
+      if (this.secretClicks === 7) {
+        this.secretClicks = 0; // reset
+        
+        if (!window.PublicKeyCredential) {
+          alert('Tu navegador no soporta seguridad nativa o requiere estar en HTTPS.');
+          return;
+        }
+
+        try {
+          // Generamos datos aleatorios para la petición WebAuthn
+          const challenge = new Uint8Array(32);
+          window.crypto.getRandomValues(challenge);
+          const userId = new Uint8Array(16);
+          window.crypto.getRandomValues(userId);
+
+          // Llamada a WebAuthn pidiendo el candado del Sistema Operativo
+          const cred = await navigator.credentials.create({
+            publicKey: {
+              challenge: challenge,
+              rp: { name: 'Sistema Central UTFlower', id: window.location.hostname },
+              user: { id: userId, name: 'admin_secreto', displayName: 'Acceso Restringido' },
+              pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+              authenticatorSelection: {
+                // "platform" obliga a usar Windows Hello, TouchID o PIN del dispositivo
+                authenticatorAttachment: 'platform',
+                userVerification: 'required'
+              },
+              timeout: 60000,
+              attestation: 'none'
+            }
+          });
+
+          if (cred) {
+            // ¡Exitoso! El usuario puso su PIN/huella correcta
+            alert('🔐 ¡Autenticación Biométrica/Local Exitosa! Procediendo al panel de Administrador...');
+            
+            // Asignar rol de admin de emergencia en pruebas (opcional) o simplemente redirigir 
+            // Si el proyecto usa un panel en /admin.html o una vista:
+            window.location.href = '/admin.html'; // Cambia esta URL si tu panel está en otro lado
+          }
+
+        } catch (error) {
+          console.warn('Acceso denegado o cancelado:', error);
+          alert('❌ Acceso Denegado. La contraseña u opción de seguridad fue cancelada.');
+        }
+      }
     }
   },
   watch: {
@@ -176,6 +238,25 @@ export default {
 
 .logo a { color: var(--text-soft); text-decoration: none; }
 .logo .accent { color: var(--accent-pink); }
+
+/* Botón Secreto (Admin) */
+.secret-admin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 15px;
+  height: 3px;
+  background-color: var(--text-soft);
+  opacity: 0.2; /* Muy sutil para que no llame la atención de los usuarios normales */
+  margin-left: 15px;
+  border-radius: 2px;
+  transition: opacity 0.3s ease, background-color 0.3s ease;
+}
+
+.secret-admin-btn:hover {
+  opacity: 1;
+  background-color: var(--accent-pink);
+}
 
 .nav-links {
   display: flex;
@@ -279,11 +360,51 @@ export default {
   font-size: 0.7rem;
 }
 
+/* Toggle de Menú Móvil (Hamburguesa) */
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.menu-toggle .bar {
+  display: block;
+  width: 25px;
+  height: 3px;
+  margin: 5px auto;
+  background-color: var(--accent-pink);
+  transition: all 0.3s ease;
+  border-radius: 2px;
+}
+
 /* Móvil */
 @media (max-width: 768px) {
+  .menu-toggle {
+    display: block;
+  }
+
   .nav-links {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
     background-color: var(--header-bg, var(--bg-creme));
     border-top: 1px solid var(--primary-pink);
+    padding: 20px 0;
+    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+  }
+
+  .nav-links.is-active {
+    display: flex;
+  }
+
+  .nav-icons {
+    justify-content: center;
+    margin-top: 15px;
   }
 }
 </style>
