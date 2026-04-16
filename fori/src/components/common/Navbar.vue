@@ -149,8 +149,8 @@ export default {
         // Cambia 'admin123' por la contraseña que quieras configurar para entrar
         if (pass === 'admin123') {
             alert('✅ ¡Acceso Autorizado! \n\n Bienvenido al panel de control.');
-            // Redirige al panel que está en la carpeta public/admin-inventario
-            window.location.href = '/admin-inventario/index.html'; 
+            // Usamos una ruta "limpia" (clean URL) sin el index.html para que se vea profesional
+            window.location.href = '/admin-inventario/'; 
         } else if (pass !== null) {
             alert('❌ Acceso Denegado. Contraseña incorrecta.');
         }
