@@ -1,8 +1,7 @@
 <template>
   <div class="profile-layout min-h-screen bg-gray-50 dark:bg-gray-900 pb-12">
     
-    <!-- Contenido cuando el usuario ha iniciado sesión -->
-    <div v-if="isLoggedIn">
+    <div>
       <!-- Header tipo MercadoLibre (Amarillo o adaptable al DarkMode) -->
       <div class="profile-header bg-yellow-400 dark:bg-yellow-600 text-gray-900 dark:text-white py-8 px-5">
         <div class="max-w-6xl mx-auto flex items-center gap-6">
@@ -92,34 +91,7 @@
             </div>
           </div>
 
-        </div>
       </main>
-    </div>
-
-    <!-- Contenido cuando el usuario NO ha iniciado sesión -->
-    <div v-else class="empty-container">
-      <div class="empty-card">
-        <div class="empty-icon-wrapper">
-          <span class="empty-icon">
-            🌺
-          </span>
-        </div>
-        <h2 class="empty-title">
-          ¡Hola! Para ver tu perfil, <br/>ingresa a tu cuenta
-        </h2>
-        <p class="empty-desc">
-          Podrás ver tus compras, editar tus datos, gestionar tus direcciones favoritas y mucho más.
-        </p>
-        
-        <div class="empty-actions">
-          <button @click="goTo('/login')" class="btn-primary">
-            Iniciar sesión
-          </button>
-          <button @click="goTo('/registro')" class="btn-secondary">
-            Crear cuenta nueva
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- Modal Configuración MFA -->
@@ -164,10 +136,10 @@ const mfaQrUrl = ref('');
 const mfaSecret = ref('');
 
 onMounted(() => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token') || localStorage.getItem('access_token');
 
   if (!token) {
-    isLoggedIn.value = false;
+    router.push('/login');
     return;
   }
 
@@ -179,14 +151,14 @@ onMounted(() => {
     if (email) {
       userEmail.value = email;
       userName.value = email.split('@')[0];
-      isLoggedIn.value = true;
       localStorage.setItem('user', JSON.stringify({ email }));
     } else {
-      isLoggedIn.value = false;
+      router.push('/login');
     }
   } catch (e) {
     localStorage.removeItem('token');
-    isLoggedIn.value = false;
+    localStorage.removeItem('access_token');
+    router.push('/login');
   }
 });
 
