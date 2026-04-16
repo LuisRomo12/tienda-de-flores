@@ -50,14 +50,14 @@
           
           <a href="/buscar" aria-label="Buscar" v-magnetic="{ strength: 0.5 }"><i class="icon-search">🔍</i></a>
           <li class="has-submenu" @mouseenter="openSubmenu('user')" @mouseleave="closeSubmenu">
-            <a href="/perfil" aria-label="Cuenta" v-magnetic="{ strength: 0.5 }">👤</a>
+            <router-link to="/perfil" aria-label="Cuenta" v-magnetic="{ strength: 0.5 }">👤</router-link>
             <ul class="submenu" v-show="activeSubmenu === 'user'">
               <template v-if="!isLoggedIn">
-                <li><a href="/login">Iniciar Sesión</a></li>
-                <li><a href="/registro">Registrarse</a></li>
+                <li><router-link to="/login" @click="closeSubmenu">Iniciar Sesión</router-link></li>
+                <li><router-link to="/registro" @click="closeSubmenu">Registrarse</router-link></li>
               </template>
               <template v-else>
-                <li><a href="/perfil">Mi Perfil</a></li>
+                <li><router-link to="/perfil" @click="closeSubmenu">Mi Perfil</router-link></li>
                 <li><a href="#" @click.prevent="logout">Cerrar Sesión</a></li>
               </template>
             </ul>
