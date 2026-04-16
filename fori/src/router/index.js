@@ -108,8 +108,10 @@ function isTokenValid(token) {
   if (!token) return false
   const payload = decodeJWTPayload(token)
   if (!payload) return false
+  // Si el token no tiene campo exp, no es un token de sesión válido
+  if (!payload.exp) return false
   // exp está en segundos desde epoch
-  if (payload.exp && payload.exp * 1000 < Date.now()) {
+  if (payload.exp * 1000 < Date.now()) {
     // Token expirado — limpiarlo del localStorage para no seguir bloqueando
     localStorage.removeItem('access_token')
     localStorage.removeItem('token')
@@ -151,6 +153,7 @@ router.beforeEach((to, _from, next) => {
 
   // ── 1. Ruta solo para usuarios NO autenticados (login, registro) ──────────
   const esSoloPublica = RUTAS_SOLO_PUBLICAS.some(r => to.path.startsWith(r))
+  // Solo redirigir a /perfil si la sesión es REALMENTE activa (token válido y no expirado)
   if (esSoloPublica && sesionActiva) {
     return next({ path: '/perfil' })
   }
