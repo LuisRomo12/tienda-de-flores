@@ -150,7 +150,7 @@ export default {
         if (pass === 'admin123') {
             alert('✅ ¡Acceso Autorizado! \n\n Bienvenido al panel de control.');
             // Usamos una ruta "limpia" (clean URL) sin el index.html para que se vea profesional
-            window.location.href = '/admin-inventario'; 
+            window.location.href = '/admin-inventario/'; 
         } else if (pass !== null) {
             alert('❌ Acceso Denegado. Contraseña incorrecta.');
         }
